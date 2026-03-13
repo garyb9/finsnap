@@ -1,23 +1,54 @@
 import 'dotenv/config';
-import express from 'express';
+import { loadConfig } from './config';
+import { getRedis, disconnectRedis } from './redis';
+import { EvmCollector } from './collectors/evm';
+import { SnapStore } from './storage/snapStore';
+import { SnapBuilder } from './snapshot/builder';
+import { SnapScheduler } from './scheduler/cron';
+import { TelegramOutput } from './output/telegram';
+import { WebOutput } from './output/web';
 import logger from './logger';
 
-const app = express();
+async function main() {
+  const config = loadConfig();
+  const redis = getRedis(config.redisUrl);
 
-// Allow the frontend (localhost:3000 by default) to call this backend in dev.
-app.use((_req, res, next) => {
-  const origin = process.env.CORS_ORIGIN ?? 'http://localhost:3000';
-  res.header('Access-Control-Allow-Origin', origin);
-  next();
-});
+  const evmCollector = new EvmCollector(config);
+  const store = new SnapStore(redis);
+  const builder = new SnapBuilder(evmCollector, config, redis);
+  const telegram = new TelegramOutput(config, store);
+  const scheduler = new SnapScheduler(config, builder, store, telegram);
+  const web = new WebOutput(config, store, scheduler);
 
-app.get('/health', (_req, res) => {
-  const timestamp = new Date().toISOString();
-  res.json({ status: 'ok', timestamp });
-});
+  // Backfill ~2 min of blocks before starting scheduler
+  await evmCollector.backfill(10);
+  evmCollector.start();
 
-const port = Number(process.env.PORT ?? 4000);
+  // On startup: if no snap or data is stale (>10 min old), run one immediately
+  const SNAP_INTERVAL_MS = 10 * 60 * 1000;
+  const existingSnap = await store.getLatest();
+  if (!existingSnap || Date.now() - new Date(existingSnap.timestamp).getTime() > SNAP_INTERVAL_MS) {
+    logger.info('no fresh snap on startup — running initial snap');
+    scheduler.runSnap().catch((err) => logger.error(`startup snap failed: ${err}`));
+  }
 
-app.listen(port, () => {
-  logger.info(`backend listening on port ${port}`);
+  scheduler.start();
+  web.start();
+  telegram.startCommandHandlers();
+
+  async function shutdown() {
+    logger.info('shutting down...');
+    evmCollector.stop();
+    scheduler.stop();
+    await disconnectRedis();
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
+
+main().catch((err) => {
+  logger.error(`fatal: ${err}`);
+  process.exit(1);
 });
