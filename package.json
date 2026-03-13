@@ -1,0 +1,41 @@
+{
+  "name": "monorepo-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo template with backend and frontend apps.",
+  "author": "GaryB",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "format": "turbo run format",
+    "test": "turbo run test",
+    "prep": "yarn build && yarn lint:fix && yarn format",
+    "ci": "turbo run ci"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "yarn": ">=1.22.0"
+  },
+  "packageManager": "yarn@1.22.22",
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^22.0.0",
+    "@types/styled-components": "^5.1.36",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
+    "eslint": "^9.39.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.6.2",
+    "styled-components": "^6.3.11",
+    "turbo": "2.8.16",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.56.0",
+    "vitest": "^2.0.0"
+  }
+}

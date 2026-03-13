@@ -1,0 +1,171 @@
+:root {
+  color-scheme: dark;
+  --bg: #050711;
+  --bg-elevated: #0b1020;
+  --border: #1f2933;
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.12);
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --danger: #f97373;
+  --radius: 10px;
+  --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.6);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: radial-gradient(circle at top, #0b1120 0, #020617 50%, #000 100%);
+  color: var(--text);
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px 40px;
+  gap: 32px;
+}
+
+.header {
+  max-width: 880px;
+  text-align: center;
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.header p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.api-url code {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 999px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+}
+
+code {
+  font-family:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.table-section {
+  width: 100%;
+  max-width: 1080px;
+  background: radial-gradient(circle at top left, #0f172a 0, #020617 55%);
+  border-radius: 24px;
+  padding: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: var(--shadow-soft);
+  position: relative;
+  overflow: hidden;
+}
+
+.table-section::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 55%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.table-section table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  position: relative;
+  z-index: 1;
+}
+
+.table-section thead th {
+  text-align: left;
+  font-weight: 500;
+  padding: 8px 10px;
+  color: var(--muted);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  white-space: nowrap;
+}
+
+.table-section tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.8);
+}
+
+.table-section tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-section tbody tr:nth-child(odd) {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.table-section tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.table-section tbody tr:hover {
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.table-section tbody td:nth-child(1) {
+  color: var(--muted);
+}
+
+.table-section tbody td:nth-child(4) {
+  font-variant-numeric: tabular-nums;
+}
+
+.table-section tbody td:nth-child(5) {
+  color: var(--accent);
+}
+
+.table-section tbody td:nth-child(7) {
+  color: var(--danger);
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 32px 12px 28px;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+  }
+
+  .table-section {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .table-section table {
+    font-size: 0.78rem;
+  }
+
+  .table-section thead th,
+  .table-section tbody td {
+    padding: 6px 6px;
+  }
+}

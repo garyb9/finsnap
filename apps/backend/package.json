@@ -1,0 +1,25 @@
+{
+  "name": "@monorepo/backend",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "eslint \"src/**/*.{ts,js}\"",
+    "lint:fix": "eslint --fix \"src/**/*.{ts,js}\"",
+    "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ci": "yarn build && yarn lint && yarn test"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "express": "^5.0.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "ts-node-dev": "^2.0.0"
+  }
+}

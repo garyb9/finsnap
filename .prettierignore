@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.next
+
+# Monorepo-aware ignores
+**/node_modules/**
+**/dist/**
+**/coverage/**
+**/.next/**
+
