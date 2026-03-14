@@ -1,4 +1,8 @@
-import type { OptionsExpirationAnalysis } from '../analyzers/types';
+import type {
+  OptionsExpirationAnalysis,
+  TimeframeAnalysis,
+  MoodDimension,
+} from '../analyzers/types';
 
 /** JSON-serializable whale transfer (blockNumber as number, not bigint) */
 export interface SnapWhaleTransfer {
@@ -8,6 +12,12 @@ export interface SnapWhaleTransfer {
   valueEth: number;
   blockNumber: number;
   timestamp: number;
+}
+
+export interface AssetSnap {
+  currentPrice: number;
+  timeframes: TimeframeAnalysis[];
+  tsmom: { score: number; label: string };
 }
 
 export interface FinSnap {
@@ -38,6 +48,7 @@ export interface FinSnap {
     string,
     {
       price: number;
+      description?: string;
       expirations: OptionsExpirationAnalysis[];
     }
   >;
@@ -47,6 +58,19 @@ export interface FinSnap {
     volumeIntensity: number;
     gasCongestion: number;
     overallSentiment: number;
+  };
+  /** ETH price analysis — present when CoinGecko data is available */
+  eth?: AssetSnap;
+  /** BTC price analysis — present when CoinGecko data is available */
+  btc?: AssetSnap;
+  /** Market mood vector — present when price analysis is available */
+  mood?: {
+    fearGreed: MoodDimension;
+    networkStress: MoodDimension;
+    whaleEnergy: MoodDimension;
+    volumeCharacter: MoodDimension;
+    priceMomentum: MoodDimension;
+    overallTone: MoodDimension;
   };
 }
 

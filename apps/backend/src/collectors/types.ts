@@ -38,6 +38,42 @@ export interface Collector {
   drain(windowMs: number): CollectorState;
 }
 
+// --- Price data types (asset-agnostic, ETH/BTC/etc) ---
+
+export interface PricePoint {
+  timestamp: number;
+  price: number;
+}
+
+export interface VolumePoint {
+  timestamp: number;
+  volume: number;
+}
+
+export interface AssetPriceHistory {
+  prices: PricePoint[];
+  volumes: VolumePoint[];
+}
+
+export interface AssetPriceDataSet {
+  /** 5-min granularity, last 24h — covers 5M / 1H / 4H / D timeframes */
+  day1: AssetPriceHistory | null;
+  /** Hourly granularity, last 7d — covers W timeframe */
+  day7: AssetPriceHistory | null;
+  /** Hourly granularity, last 30d — covers M timeframe */
+  day30: AssetPriceHistory | null;
+}
+
+export interface AssetPriceCachedBucket {
+  fetchedAt: number;
+  data: AssetPriceHistory;
+}
+
+// Backwards-compatible ETH-specific aliases
+export type EthPriceHistory = AssetPriceHistory;
+export type EthPriceDataSet = AssetPriceDataSet;
+export type EthPriceCachedBucket = AssetPriceCachedBucket;
+
 // --- Options types ---
 
 export interface OptionsContract {
@@ -55,6 +91,8 @@ export interface OptionsChain {
 
 export interface OptionsData {
   ticker: string;
+  /** Human-readable name (from Yahoo Finance or fallback) */
+  description?: string;
   /** Current underlying price */
   price: number;
   chains: OptionsChain[];

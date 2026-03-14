@@ -44,6 +44,7 @@ export class WebOutput {
         description: 'Financial data snapshot — on-chain + options',
         endpoints: {
           'GET /snap': 'Latest full snapshot',
+          'GET /snap/options-insight': 'Per-ticker options insight summary',
           'GET /snap/onchain': 'On-chain block only',
           'GET /snap/equities/:ticker': 'Options data for a ticker',
           'GET /snaps?limit=N': 'Snapshot history',
@@ -68,6 +69,27 @@ export class WebOutput {
         blockHeight: snap.blockHeight,
         onChain: snap.onChain,
         signals: snap.signals,
+      });
+    });
+
+    this.app.get('/snap/options-insight', async (c) => {
+      const snap = await this.store.getLatest();
+      if (!snap) return c.json({ error: 'No snapshots generated yet' }, 404);
+
+      const equities = Object.entries(snap.equities).map(([ticker, eq]) => ({
+        ticker,
+        price: eq.price,
+        expirations: eq.expirations.map((exp) => ({
+          date: exp.date,
+          pcRatio: exp.pcRatio,
+          insight: exp.insight ?? null,
+        })),
+      }));
+
+      return c.json({
+        id: snap.id,
+        timestamp: snap.timestamp,
+        equities,
       });
     });
 

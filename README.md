@@ -112,7 +112,7 @@ Not analysis. Not trading. A **snap** of the market's current state, on demand o
 
 ## Repository Layout
 
-```
+```text
 finsnap/
 ├── apps/
 │   ├── backend/              # Hono API + collectors + analyzers + Telegram bot

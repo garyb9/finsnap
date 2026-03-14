@@ -13,7 +13,7 @@ const configSchema = z.object({
   telegramChannelId: z.string().min(1),
 
   // Options — comma-separated tickers
-  watchedTickers: z.string().default('IBIT'),
+  watchedTickers: z.string().default('IBIT,SPY,GLD,XLE,XLI,QQQ,USO'),
 
   // Scheduler
   snapCron: z.string().default('*/10 * * * *'),

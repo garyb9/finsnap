@@ -110,7 +110,18 @@ export class EvmCollector implements Collector {
       }
     }
 
-    const baseFeeGwei = block.baseFeePerGas ? parseFloat(formatGwei(block.baseFeePerGas)) : 0;
+    let baseFeeGwei = 0;
+    if (block.baseFeePerGas) {
+      baseFeeGwei = parseFloat(formatGwei(block.baseFeePerGas));
+    } else {
+      try {
+        const gasPrice = await this.client.getGasPrice();
+        baseFeeGwei = parseFloat(formatGwei(gasPrice));
+        log.warn(`block ${block.number}: baseFeePerGas missing, using gasPrice fallback`);
+      } catch (err) {
+        log.warn(`block ${block.number}: failed to fetch gas price fallback: ${err}`);
+      }
+    }
 
     const blockData: BlockData = {
       number: block.number,

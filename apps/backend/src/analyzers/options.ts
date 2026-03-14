@@ -1,5 +1,5 @@
 import type { OptionsData } from '../collectors/types';
-import type { OptionsAnalysis, OptionsLegStats } from './types';
+import type { OptionsAnalysis, OptionsLegStats, OptionsSkewInsight } from './types';
 
 /** Weighted mean: sum(v[i] * w[i]) / sum(w[i]) */
 export function weightedMean(values: number[], weights: number[]): number {
@@ -32,6 +32,104 @@ function analyzeleg(
   return { totalVolume, totalOI, weightedMeanStrike, weightedStdStrike };
 }
 
+function computeSkewInsight(
+  spotPrice: number,
+  calls: OptionsLegStats,
+  puts: OptionsLegStats
+): OptionsSkewInsight {
+  const eps = 1e-6;
+  const totalVolume = calls.totalVolume + puts.totalVolume;
+  const totalOi = calls.totalOI + puts.totalOI;
+
+  // Very thin expiries are not meaningful for skew insight
+  const THIN_NOTIONAL_THRESHOLD = 5_000;
+  if (totalVolume + totalOi < THIN_NOTIONAL_THRESHOLD || spotPrice <= 0) {
+    return {
+      label: 'thin',
+      skewScore: 0,
+      dominantSide: 'none',
+      volRatio: 1,
+      oiRatio: 1,
+      wallStrike: 0,
+      distanceToSpotAbs: 0,
+      distanceToSpotPct: 0,
+      nearSpotCluster: false,
+      note: 'Low liquidity — expiry not meaningful',
+    };
+  }
+
+  const volRatio = puts.totalVolume / (calls.totalVolume + eps);
+  const oiRatio = puts.totalOI / (calls.totalOI + eps);
+
+  // Combine volume + OI into a symmetric skew score
+  const skewScore = 0.5 * (Math.log(Math.max(volRatio, eps)) + Math.log(Math.max(oiRatio, eps)));
+
+  let dominantSide: OptionsSkewInsight['dominantSide'] = 'none';
+  if (skewScore > 0.05) dominantSide = 'puts';
+  else if (skewScore < -0.05) dominantSide = 'calls';
+
+  const dominantLeg = dominantSide === 'puts' ? puts : calls;
+  const wallStrike = dominantLeg.weightedMeanStrike;
+  const distanceToSpotAbs = wallStrike - spotPrice;
+  const distanceToSpotPct = (distanceToSpotAbs / spotPrice) * 100;
+
+  const stdPct = (dominantLeg.weightedStdStrike / spotPrice) * 100;
+  const withinStd = Math.abs(distanceToSpotAbs) <= dominantLeg.weightedStdStrike * 1.5;
+  const nearSpotCluster = withinStd && stdPct <= 10;
+
+  const PUT_DOM_THRESHOLD = 1.3;
+  const CALL_DOM_THRESHOLD = 1 / PUT_DOM_THRESHOLD;
+
+  let label: OptionsSkewInsight['label'] = 'balanced';
+  let note: string | undefined;
+
+  if (volRatio >= PUT_DOM_THRESHOLD && oiRatio >= PUT_DOM_THRESHOLD && dominantSide === 'puts') {
+    label = 'put_stack';
+    if (distanceToSpotAbs < 0 && Math.abs(distanceToSpotPct) <= 20) {
+      note = 'Puts stacking below spot — potential dip zone';
+    } else if (distanceToSpotAbs < 0) {
+      note = 'Puts stacked further below spot';
+    } else {
+      note = 'Puts dominant but not clearly below spot';
+    }
+  } else if (
+    volRatio <= CALL_DOM_THRESHOLD &&
+    oiRatio <= CALL_DOM_THRESHOLD &&
+    dominantSide === 'calls'
+  ) {
+    label = 'call_stack';
+    if (distanceToSpotAbs > 0 && Math.abs(distanceToSpotPct) <= 20) {
+      note = 'Calls stacking above spot — potential squeeze/ceiling';
+    } else if (distanceToSpotAbs > 0) {
+      note = 'Calls stacked further above spot';
+    } else {
+      note = 'Calls dominant but not clearly above spot';
+    }
+  } else if (dominantSide === 'puts' && skewScore >= 0.08 && Math.abs(distanceToSpotPct) <= 12) {
+    label = 'soft_put';
+    note = distanceToSpotAbs < 0 ? 'Mild put lean below spot' : 'Mild put lean near/above spot';
+  } else if (dominantSide === 'calls' && skewScore <= -0.08 && Math.abs(distanceToSpotPct) <= 12) {
+    label = 'soft_call';
+    note = distanceToSpotAbs > 0 ? 'Mild call lean above spot' : 'Mild call lean near/below spot';
+  } else {
+    label = 'balanced';
+    note = 'No strong skew between puts and calls';
+  }
+
+  return {
+    label,
+    skewScore,
+    dominantSide,
+    volRatio,
+    oiRatio,
+    wallStrike,
+    distanceToSpotAbs,
+    distanceToSpotPct,
+    nearSpotCluster,
+    note,
+  };
+}
+
 export function analyzeOptionsChain(data: OptionsData): OptionsAnalysis {
   const expirations = data.chains.map((chain) => {
     const calls = analyzeleg(chain.calls);
@@ -43,8 +141,9 @@ export function analyzeOptionsChain(data: OptionsData): OptionsAnalysis {
       pcRatio: Math.round(pcRatio * 1000) / 1000,
       calls,
       puts,
+      insight: computeSkewInsight(data.price, calls, puts),
     };
   });
 
-  return { ticker: data.ticker, expirations };
+  return { ticker: data.ticker, description: data.description, expirations };
 }
