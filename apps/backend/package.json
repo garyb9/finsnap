@@ -18,7 +18,7 @@
     "cron-parser": "^5.1.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.0.0",
-    "hono": "^4.7.4",
+    "hono": "^4.12.12",
     "ioredis": "^5.4.2",
     "node-cron": "^3.0.3",
     "telegraf": "^4.16.3",
