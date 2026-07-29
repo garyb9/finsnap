@@ -86,6 +86,13 @@ export type CompactAsset = {
   consensus: Consensus;
   tsmom?: { score: number; label: string };
   momentum?: number;
+  /** Daily Bollinger read: envelope width, and where price sits inside it. */
+  bollinger?: {
+    bandwidth: number;
+    percentB: number;
+    widthLabel: string;
+    positionLabel: string;
+  };
   options?: OptionsContext;
   notes: string[];
   top: CompactStrategy[];

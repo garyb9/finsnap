@@ -25,6 +25,10 @@ export type BenchmarkWindowCell = {
   label: string;
   assetsCovered: number;
   avgCagrPct: number;
+  /** What holding returned over this window on the typical asset — the unit the column is in. */
+  medianTotalReturnPct: number;
+  /** That same asset's annualized rate. */
+  medianCagrPct: number;
 };
 
 export type BenchmarkSummary = {
@@ -42,6 +46,8 @@ export type StrategyLeaderboard = {
   windows: { id: WindowId; label: string }[];
   rows: StrategyLeaderboardRow[];
   bestOverall: string | null;
+  /** False when the top row only loses least — do not call it a winner. */
+  bestBeatsBenchmark: boolean;
   bestPerWindow: Partial<Record<WindowId, string>>;
   benchmark: BenchmarkSummary | null;
 };

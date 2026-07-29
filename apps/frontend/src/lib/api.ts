@@ -1,3 +1,4 @@
+import type { CorrelationMatrix } from '../types/correlation';
 import type { FinSnap } from '../types/finsnap';
 import type { Guide } from '../types/guide';
 import type { StrategyLeaderboard } from '../types/leaderboard';
@@ -30,8 +31,9 @@ export function fetchSnap(): Promise<FinSnap | null> {
 /**
  * Ten strategies per asset, not four.
  *
- * The consensus count is over all nineteen non-benchmark rules, so showing only
- * four made "6/19 long" look like it contradicted the list underneath it. Ten
+ * The consensus count is over every non-benchmark rule in the registry (22 at
+ * the time of writing), so showing only four made the "n long" tally above the
+ * list look like it contradicted the list underneath it. Ten
  * covers the ones with any real edge on almost every asset, and the expanded
  * view says explicitly how many of the total it is showing.
  */
@@ -46,6 +48,11 @@ export function fetchGuide(): Promise<Guide | null> {
 /** Which strategy wins, pooled across the whole universe — derives from the latest report. */
 export function fetchStrategyLeaderboard(): Promise<StrategyLeaderboard | null> {
   return getJson<StrategyLeaderboard>('/strategies/leaderboard');
+}
+
+/** Pairwise price correlation across the universe, over the given lookback window. */
+export function fetchCorrelation(windowId: string): Promise<CorrelationMatrix | null> {
+  return getJson<CorrelationMatrix>(`/correlation?window=${encodeURIComponent(windowId)}`);
 }
 
 export function fetchSyncStatus(): Promise<SyncJob | null> {

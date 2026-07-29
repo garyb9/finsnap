@@ -17,13 +17,37 @@ const Empty = styled.div`
   background: ${theme.colors.slateOverlay};
 `;
 
-const Note = styled.p`
+/**
+ * The page's own header, aligned to the card under it.
+ *
+ * This was a bare paragraph in a centring container with a `ch` cap, which at
+ * this type size resolved to about 480px — so it floated in the middle of a
+ * 1400px page, attached to nothing. Full width, left edge shared with the card,
+ * and the sentence split off the title it was doing double duty as.
+ */
+const Head = styled.header`
   width: 100%;
-  margin: 0 0 4px;
-  font-size: 0.74rem;
-  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 2px 6px;
+`;
+
+const Title = styled.h1`
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
   color: ${theme.colors.label};
-  max-width: 80ch;
+`;
+
+const Note = styled.p`
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: ${theme.colors.textMuted};
+  max-width: 92ch;
 `;
 
 /**
@@ -48,11 +72,15 @@ export default function OptionsPage() {
   return (
     <Page>
       <MainContainer>
-        <Note>
-          Open interest and volume by expiry for the liquid tickers. Read this as context rather
-          than as a signal — none of it feeds the strategies, and a wall of puts is a statement
-          about positioning, not about direction.
-        </Note>
+        <Head>
+          <Title>Options positioning</Title>
+          <Note>
+            Open interest and volume by expiry for the liquid tickers, with the walls each chain is
+            building and the dates they sit on. Read it as context rather than as a signal — none of
+            it feeds the strategies, and a wall of puts is a statement about positioning, not about
+            direction.
+          </Note>
+        </Head>
 
         {assets.length > 0 ? (
           <OptionsTabCard assets={assets} />

@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
 import { requireToken } from '../auth';
+import { registerCorrelationRoutes } from './correlation';
 import { registerGuideRoutes } from './guide';
 import { registerHealthRoutes } from './health';
 import { registerReportRoutes } from './report';
@@ -30,6 +31,7 @@ const REGISTRARS: RouteRegistrar[] = [
   registerHealthRoutes,
   registerReportRoutes,
   registerStrategyRoutes,
+  registerCorrelationRoutes,
   registerGuideRoutes,
   registerSyncRoutes,
   registerTelegramRoutes,

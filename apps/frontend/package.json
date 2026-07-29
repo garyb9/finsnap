@@ -12,12 +12,14 @@
     "ci": "yarn format && yarn lint && yarn type-check && yarn build"
   },
   "dependencies": {
+    "katex": "^0.18.1",
     "next": "15.4.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "styled-components": "^6.3.11"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.8",
     "@types/node": "^22.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

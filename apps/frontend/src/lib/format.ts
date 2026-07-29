@@ -88,6 +88,42 @@ export function winRateColor(pct: number): string {
   return lerpColor(theme.colors.label, theme.colors.success, (clamped - 50) / 50);
 }
 
+/**
+ * Colour a value against the rest of its column rather than against a fixed
+ * line.
+ *
+ * Beating buy-and-hold gets steadily harder the longer the horizon, so a
+ * scale anchored at 50% paints a twenty-year column entirely red and tells you
+ * nothing about which rule held up best in it. Ranking within the column keeps
+ * the comparison the eye actually wants to make: best cell greenest, worst
+ * reddest, the middle of the spread neutral.
+ *
+ * Colour therefore means "best in this column", never "good in absolute terms"
+ * — the number beside it is what says whether the winner is any good.
+ */
+export function columnRankColor(value: number, min: number, max: number): string {
+  // One distinct value, or a column of identical cells: nothing to rank.
+  if (!Number.isFinite(value) || max <= min) return theme.colors.textMuted;
+
+  const t = (value - min) / (max - min);
+  return t <= 0.5
+    ? lerpColor(theme.colors.danger, theme.colors.label, t * 2)
+    : lerpColor(theme.colors.label, theme.colors.success, (t - 0.5) * 2);
+}
+
+/**
+ * Diverging around 0 — the "no relationship" line for a correlation
+ * coefficient. Warm toward red below 0, a muted neutral at 0, cool toward
+ * green above it, same construction as `winRateColor` but centered on the
+ * coefficient's own natural midpoint instead of a 50% win rate.
+ */
+export function correlationColor(r: number): string {
+  const clamped = Math.max(-1, Math.min(1, r));
+  return clamped <= 0
+    ? lerpColor(theme.colors.danger, theme.colors.label, clamped + 1)
+    : lerpColor(theme.colors.label, theme.colors.success, clamped);
+}
+
 // --- Daily report labels ---
 
 export const VERDICT_LABEL: Record<Verdict, string> = {

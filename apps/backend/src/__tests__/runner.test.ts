@@ -71,13 +71,34 @@ describe('backtestAsset', () => {
     expect(result.barsAnalyzed).toBe(1_500);
   });
 
-  it('ranks strategies by opportunity score', () => {
+  /**
+   * Edge, not opportunity — `backtestAsset` says so explicitly and for a reason:
+   * `stay_out` and `exit` invert the edge, so a discredited rule sitting in cash
+   * carries a *high* opportunity score. Ranking on that floats exactly the rules
+   * a reader should ignore to the top. This asserted the opposite invariant and
+   * passed only because a monotonically rising series leaves every rule long.
+   */
+  it('ranks strategies by edge score, not by opportunity score', () => {
     const series = toSeries(barsFromCloses(risingCloses(1_500, 100, 0.1)));
-    const scores = backtestAsset(CRYPTO, series, EXECUTION)!.strategies.map(
-      (s) => s.opportunityScore
-    );
+    const strategies = backtestAsset(CRYPTO, series, EXECUTION)!.strategies;
+    const edges = strategies.map((s) => s.edgeScore);
 
-    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+    expect([...edges].sort((a, b) => b - a)).toEqual(edges);
+  });
+
+  it('breaks an edge tie on trade count so a rule that never traded cannot outrank one that did', () => {
+    const series = toSeries(barsFromCloses(risingCloses(1_500, 100, 0.1)));
+    const strategies = backtestAsset(CRYPTO, series, EXECUTION)!.strategies;
+
+    for (let i = 1; i < strategies.length; i++) {
+      if (strategies[i - 1].edgeScore !== strategies[i].edgeScore) continue;
+      const prev = strategies[i - 1].windows[0]?.stats.numTrades ?? 0;
+      const cur = strategies[i].windows[0]?.stats.numTrades ?? 0;
+      expect(
+        prev,
+        `${strategies[i - 1].strategyId} vs ${strategies[i].strategyId}`
+      ).toBeGreaterThanOrEqual(cur);
+    }
   });
 
   it('reports the last completed bar as the reference price', () => {

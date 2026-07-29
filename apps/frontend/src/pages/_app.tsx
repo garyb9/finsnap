@@ -1,4 +1,5 @@
 import type { AppProps } from 'next/app';
+import 'katex/dist/katex.min.css';
 import { ThemeProvider } from 'styled-components';
 import { GlobalStyles } from '../styles/GlobalStyles';
 import { SiteHeader } from '../components/SiteHeader';

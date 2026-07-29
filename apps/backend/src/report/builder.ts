@@ -13,12 +13,15 @@ import { SignalAction, StrategyKind, type StrategyReport } from '../backtest/typ
 import { BarInterval } from '../collectors/types';
 import {
   ACTIONABLE_EDGE,
+  BANDWIDTH_BANDS,
   BEARISH_CONSENSUS,
   BULLISH_CONSENSUS,
   MAX_TOP_OPPORTUNITIES,
   MIN_BARS_FOR_BACKTEST,
+  PERCENT_B_BANDS,
 } from '../constants';
-import { fmtPct, isoDate } from '../lib/format';
+import { Timeframe } from '../constants/enums';
+import { fmtPct, isoDate, pickBand } from '../lib/format';
 import { buildNotes, computeConsensus } from './consensus';
 import type { AssetOpportunity, DailyReport, Opportunity, OptionsContext } from './types';
 
@@ -138,6 +141,9 @@ export class ReportBuilder {
     const analysis = analyzeAssetBars(spec.label, { ...symbolBars, daily, hourly });
     const tsmom = analyzeTsmom(analysis.timeframes, spec.label);
 
+    // The daily frame, to match the daily bars every strategy above was scored on.
+    const dailyFrame = analysis.timeframes.find((t) => t.timeframe === Timeframe.D);
+
     const options = spec.hasOptions ? await this.buildOptionsContext(spec) : undefined;
     if (options?.insight && options.insight.label !== 'balanced') {
       const { dominantSide, wallStrike, distanceToSpotPct } = options.insight;
@@ -162,6 +168,12 @@ export class ReportBuilder {
       intraday: intradayResult?.strategies ?? [],
       tsmom: { score: tsmom.score, label: tsmom.label },
       momentum: analysis.marketMomentum,
+      bollinger: dailyFrame && {
+        bandwidth: dailyFrame.bollinger.bandwidth,
+        percentB: dailyFrame.bollinger.percentB,
+        widthLabel: pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label,
+        positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
+      },
       options,
       notes,
     };

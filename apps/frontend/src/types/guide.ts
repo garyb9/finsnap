@@ -52,6 +52,37 @@ export type GuideMethodNote = {
   body: string;
 };
 
+export type GuideWalkthroughStep = {
+  label: string;
+  /** LaTeX, with the actual numbers from the dataset already plugged in */
+  formula: string;
+  result: string;
+};
+
+export type GuideWalkthroughComparison = {
+  strategyTotalReturnPct: number;
+  strategyCagrPct: number;
+  strategyMaxDrawdownPct: number;
+  strategyExposurePct: number;
+  strategyNumTrades: number;
+  buyHoldTotalReturnPct: number;
+  buyHoldCagrPct: number;
+  buyHoldMaxDrawdownPct: number;
+};
+
+export type GuideExample = {
+  strategyId: string;
+  name: string;
+  kind: StrategyKind;
+  description: string;
+  dataset: { symbol: string; startDate: string; endDate: string; bars: number };
+  ruleFormula: string;
+  exampleDate: string;
+  steps: GuideWalkthroughStep[];
+  explanation: string;
+  comparison: GuideWalkthroughComparison;
+};
+
 export type GuideWindow = {
   id: WindowId;
   label: string;
@@ -64,6 +95,7 @@ export type Guide = {
   families: GuideFamily[];
   strategies: GuideStrategy[];
   metrics: GuideMetric[];
+  examples: GuideExample[];
   method: GuideMethodNote[];
   windows: { daily: GuideWindow[]; intraday: GuideWindow[] };
   execution: { initialCapital: number; feeBps: number; slippageBps: number };
@@ -73,3 +105,4 @@ export type Guide = {
 export const assetAnchor = (symbol: string): string => `asset-${symbol}`;
 export const strategyAnchor = (id: string): string => `strategy-${id}`;
 export const metricAnchor = (id: MetricId | string): string => `metric-${id}`;
+export const exampleAnchor = (id: string): string => `example-${id}`;

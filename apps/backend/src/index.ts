@@ -70,7 +70,7 @@ async function main() {
   );
 
   const sync = new SyncRunner(config, redis, scheduler);
-  const web = new WebOutput({ config, snapStore, reportStore, scheduler, sync, telegram });
+  const web = new WebOutput({ config, snapStore, reportStore, scheduler, sync, telegram, redis });
 
   logger.info(
     `tracking ${config.universe.length} assets ` +

@@ -3,9 +3,13 @@ import Link from 'next/link';
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { CardTitle, ExpTableScroll } from './Card';
-import { changeColor, fmtPct, STRATEGY_KIND_LABEL, winRateColor } from '../lib/format';
+import { changeColor, columnRankColor, fmtPct, STRATEGY_KIND_LABEL } from '../lib/format';
 import { strategyAnchor } from '../types/guide';
-import type { StrategyLeaderboard, StrategyLeaderboardRow } from '../types/leaderboard';
+import type {
+  BenchmarkSummary,
+  StrategyLeaderboard,
+  StrategyLeaderboardRow,
+} from '../types/leaderboard';
 import { WindowId } from '../types/enums';
 
 /**
@@ -21,13 +25,12 @@ import { WindowId } from '../types/enums';
 
 // ---------- Sort ----------
 
-type SortKey = 'overall' | 'excess' | 'assets' | WindowId;
+type SortKey = 'overall' | 'excess' | WindowId;
 type SortState = { key: SortKey | null; dir: 'asc' | 'desc' };
 
 function cellValue(row: StrategyLeaderboardRow, key: SortKey): number | null {
   if (key === 'overall') return row.overallWinRatePct;
   if (key === 'excess') return row.overallAvgExcessCagrPct;
-  if (key === 'assets') return row.assetsCovered;
   const cell = row.perWindow.find((w) => w.window === key);
   return cell ? cell.winRatePct : null;
 }
@@ -101,13 +104,23 @@ const GuideLink = styled(Link)`
   }
 `;
 
-const Lede = styled.p`
-  margin: 0;
-  padding: 0 22px 16px;
-  font-size: 0.74rem;
-  line-height: 1.6;
-  color: ${theme.colors.textMuted};
-  max-width: 86ch;
+/**
+ * The legend that replaced the intro paragraphs.
+ *
+ * Explaining a table in prose above it asks the reader to hold the rules in
+ * their head before they have seen anything to apply them to — the block was
+ * skipped. Everything it said now lives where it is used: the column tooltips,
+ * the guide link in the header, and this one line over the table itself.
+ */
+const Legend = styled.span`
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.68rem;
+  color: ${theme.colors.label};
 `;
 
 /**
@@ -119,10 +132,11 @@ const CalloutRow = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
-  padding: 0 22px 20px;
+  /* Clears the header rule — with the intro text gone the boxes sat on it. */
+  padding: 18px 22px 20px;
 `;
 
-const Callout = styled.div`
+const calloutFace = `
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -130,6 +144,34 @@ const Callout = styled.div`
   border-radius: ${theme.radius.md};
   background: ${theme.colors.slateOverlayDark};
   border: 1px solid ${theme.colors.borderSlateStrong};
+`;
+
+const Callout = styled.div`
+  ${calloutFace}
+`;
+
+/**
+ * The name in a callout is the answer to "which rule won this horizon", and the
+ * next question is always "what does that rule actually do" — which the guide
+ * already answers. Linking the whole box rather than the name alone keeps the
+ * target big enough to hit.
+ */
+const CalloutLink = styled(Link)`
+  ${calloutFace}
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    border-color: ${theme.colors.accent};
+    background: ${theme.colors.accentHover};
+  }
+
+  &:focus-visible {
+    outline: 1px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
 `;
 
 const CalloutLabel = styled.span`
@@ -144,6 +186,10 @@ const CalloutValue = styled.span`
   font-weight: 700;
   line-height: 1.35;
   color: ${theme.colors.textSlate};
+
+  ${CalloutLink}:hover & {
+    color: ${theme.colors.accent};
+  }
 `;
 
 const CalloutSub = styled.span`
@@ -253,9 +299,9 @@ const StrategyKindTag = styled.span`
   color: ${theme.colors.label};
 `;
 
-const Win = styled.span<{ $pct: number; $leader: boolean }>`
+const Win = styled.span<{ $color: string; $leader: boolean }>`
   font-weight: ${({ $leader }) => ($leader ? 700 : 400)};
-  color: ${({ $pct }) => winRateColor($pct)};
+  color: ${({ $color }) => $color};
 `;
 
 const LeaderDot = styled.span`
@@ -267,36 +313,69 @@ const Excess = styled.span<{ $pct: number }>`
   color: ${({ $pct }) => changeColor($pct)};
 `;
 
-/** Buy-and-hold's own row — pinned first, never sorted, and reads CAGR, not a win rate. */
-const BenchmarkRow = styled.tr`
-  background: ${theme.colors.slateOverlayStrong} !important;
-
-  td {
-    border-bottom: 1px solid ${theme.colors.borderSlateStrong} !important;
-  }
+/**
+ * Buy & hold, lifted out of the table and given its own band.
+ *
+ * It was pinned as the first row, which put a *return* inside columns whose
+ * every other cell is a *win rate*: "+741%" sitting directly above "13%" reads
+ * as one rule beating another by a factor of fifty, when the two numbers do not
+ * measure the same kind of thing at all. One unit per column — and the thing
+ * being beaten states its own unit, above the table rather than inside it.
+ */
+const BenchmarkBand = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 13px 22px 15px;
+  background: ${theme.colors.slateOverlayStrong};
+  border-bottom: 1px solid ${theme.colors.borderSlate};
 `;
 
-const BenchmarkTag = styled.span`
-  font-size: 0.62rem;
-  padding: 1px 6px;
-  border-radius: ${theme.radius.sm};
-  color: ${theme.colors.label};
-  border: 1px solid ${theme.colors.borderSlateMuted};
-  white-space: nowrap;
+const BandLabel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 128px;
 `;
 
-const Cagr = styled.span<{ $pct: number }>`
-  color: ${({ $pct }) => changeColor($pct)};
-`;
-
-const Dash = styled.span`
-  color: ${theme.colors.label};
-`;
-
-const BenchmarkName = styled.span`
+const BandTitle = styled.span`
   font-size: 0.8rem;
   font-weight: 600;
   color: ${theme.colors.textSlate};
+`;
+
+const BandUnit = styled.span`
+  font-size: 0.62rem;
+  line-height: 1.4;
+  color: ${theme.colors.label};
+`;
+
+const BandItems = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 8px 12px;
+  flex: 1;
+  min-width: 0;
+`;
+
+const BandItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+`;
+
+const BandWindow = styled.span`
+  font-size: 0.6rem;
+  color: ${theme.colors.label};
+  white-space: nowrap;
+`;
+
+const Bench = styled.span<{ $color: string }>`
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: ${({ $color }) => $color};
 `;
 
 // ---------- Sub-components ----------
@@ -329,12 +408,17 @@ function SortHead({
   );
 }
 
+/** Lowest and highest value in a column, which is what its colours are scaled to. */
+type Range = { min: number; max: number };
+
 function WindowCell({
   cell,
   isLeader,
+  range,
 }: {
   cell: { winRatePct: number; avgExcessCagrPct: number; assetsCovered: number } | undefined;
   isLeader: boolean;
+  range?: Range;
 }) {
   if (!cell) return <td>{/* no window mark to keep the layout stable */}</td>;
 
@@ -347,24 +431,77 @@ function WindowCell({
       }
     >
       {isLeader && <LeaderDot>★</LeaderDot>}
-      <Win $pct={cell.winRatePct} $leader={isLeader}>
+      <Win
+        $color={columnRankColor(cell.winRatePct, range?.min ?? 0, range?.max ?? 100)}
+        $leader={isLeader}
+      >
         {cell.winRatePct}%
       </Win>
     </td>
   );
 }
 
-function BenchmarkWindowCell({
-  cell,
-}: {
-  cell: { avgCagrPct: number; assetsCovered: number } | undefined;
-}) {
-  if (!cell) return <td>{/* no window mark to keep the layout stable */}</td>;
+/** Big multi-year returns don't need a decimal; a one-month move does. */
+function fmtReturn(pct: number): string {
+  return fmtPct(pct, Math.abs(pct) >= 100 ? 0 : 1);
+}
 
+/**
+ * What holding actually did, per horizon — the bar every win rate below is
+ * measured against, stated in its own unit.
+ *
+ * Shaded against its own horizons, never against the table: a return and a win
+ * rate share no scale, and colouring them alike is what made them look
+ * comparable in the first place.
+ */
+function BenchmarkBandRow({
+  benchmark,
+  windows,
+  range,
+}: {
+  benchmark: BenchmarkSummary;
+  windows: { id: WindowId; label: string }[];
+  range?: Range;
+}) {
   return (
-    <td title={`Buy & hold's own realized CAGR across ${cell.assetsCovered} assets`}>
-      <Cagr $pct={cell.avgCagrPct}>{fmtPct(cell.avgCagrPct)}/yr</Cagr>
-    </td>
+    <BenchmarkBand>
+      <BandLabel>
+        <BandTitle>{benchmark.name}</BandTitle>
+        <BandUnit>
+          total return · median of {benchmark.assetsCovered} assets · what the rules below are
+          trying to beat
+        </BandUnit>
+      </BandLabel>
+
+      <BandItems>
+        {windows.map((w) => {
+          const cell = benchmark.perWindow.find((c) => c.window === w.id);
+          const period = cell?.medianTotalReturnPct;
+
+          return (
+            <BandItem key={w.id}>
+              <BandWindow>{w.label}</BandWindow>
+              {typeof period === 'number' ? (
+                <Bench
+                  $color={columnRankColor(period, range?.min ?? 0, range?.max ?? 0)}
+                  title={
+                    `Holding returned ${fmtReturn(period)} over ${w.label.toLowerCase()} on the ` +
+                    `median of ${cell!.assetsCovered} assets` +
+                    (typeof cell!.medianCagrPct === 'number'
+                      ? ` — ${fmtPct(cell!.medianCagrPct)}/yr annualized`
+                      : '')
+                  }
+                >
+                  {fmtReturn(period)}
+                </Bench>
+              ) : (
+                <Bench $color={theme.colors.label}>—</Bench>
+              )}
+            </BandItem>
+          );
+        })}
+      </BandItems>
+    </BenchmarkBand>
   );
 }
 
@@ -378,6 +515,40 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
   const rows = useMemo(() => sortRows(board.rows, sort), [board.rows, sort]);
   const best = board.rows.find((r) => r.strategyId === board.bestOverall);
 
+  // The spread of each win-rate column, which is what its colours are scaled
+  // to. Built from the unsorted rows so re-sorting the table never repaints it,
+  // and from strategies only — the benchmark is in a different unit.
+  const ranges = useMemo(() => {
+    const spread = (values: number[]): Range | undefined =>
+      values.length > 0 ? { min: Math.min(...values), max: Math.max(...values) } : undefined;
+
+    const perWindow = new Map<WindowId, Range | undefined>();
+    for (const w of board.windows) {
+      perWindow.set(
+        w.id,
+        spread(
+          board.rows
+            .map((r) => r.perWindow.find((c) => c.window === w.id)?.winRatePct)
+            .filter((v): v is number => typeof v === 'number')
+        )
+      );
+    }
+
+    // The benchmark is in its own unit — a return, not a win rate — so it is
+    // shaded against its own horizons rather than against the rules above it.
+    const benchmark = spread(
+      (board.benchmark?.perWindow ?? [])
+        .map((c) => c.medianTotalReturnPct)
+        .filter((v): v is number => typeof v === 'number')
+    );
+
+    return {
+      overall: spread(board.rows.map((r) => r.overallWinRatePct)),
+      perWindow,
+      benchmark,
+    };
+  }, [board.rows, board.windows, board.benchmark]);
+
   return (
     <Wrap>
       <Header>
@@ -388,48 +559,63 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
         <GuideLink href="/guide#strategies">how these rules work</GuideLink>
       </Header>
 
-      <Lede>
-        Every rule in the registry, scored across the entire universe instead of one asset at a
-        time. Each horizon column is a win rate — the share of assets where the rule beat buying the
-        asset at the start of that lookback and holding it, on both return and drawdown. Colour
-        follows that split too: red below the 50% coin-flip line, green above it, so two losing
-        rules still read as different shades rather than the same flat red. A{' '}
-        <LeaderDot>★</LeaderDot> marks the rule that wins a horizon outright; a strategy only
-        qualifies once it ran on at least half the universe, so a rule that only cleared warm-up on
-        one or two tickers cannot &ldquo;win&rdquo; on a sample of one. The pinned{' '}
-        <strong>Buy &amp; Hold</strong> row at the top of the table is the benchmark itself — its
-        own realized return per horizon, not a win rate, since it can&rsquo;t beat itself.
-      </Lede>
-
       {best && (
         <CalloutRow>
-          <Callout>
-            <CalloutLabel>Beats buy &amp; hold most</CalloutLabel>
+          <CalloutLink href={`/guide#${strategyAnchor(best.strategyId)}`}>
+            {/* Ranking first only means "beats hold most" when it beats hold at
+                all. Every rule here currently loses to holding, so the honest
+                label for the top row is that it loses least. */}
+            <CalloutLabel>
+              {board.bestBeatsBenchmark ? 'Beats buy & hold most' : 'Loses to buy & hold least'}
+            </CalloutLabel>
             <CalloutValue>{best.name}</CalloutValue>
             <CalloutSub>
               {best.overallWinRatePct}% overall · {fmtPct(best.overallAvgExcessCagrPct)} avg excess
               CAGR · {best.assetsCovered} assets
             </CalloutSub>
-          </Callout>
+          </CalloutLink>
 
           {windows.map((w) => {
             const leaderId = board.bestPerWindow[w.id];
             const leaderRow = leaderId ? board.rows.find((r) => r.strategyId === leaderId) : null;
             const cell = leaderRow?.perWindow.find((c) => c.window === w.id);
+
+            // No qualifying rule at this horizon — nothing to link to.
+            if (!leaderRow || !leaderId) {
+              return (
+                <Callout key={w.id}>
+                  <CalloutLabel>{w.label}</CalloutLabel>
+                  <CalloutValue>—</CalloutValue>
+                </Callout>
+              );
+            }
+
             return (
-              <Callout key={w.id}>
+              <CalloutLink key={w.id} href={`/guide#${strategyAnchor(leaderId)}`}>
                 <CalloutLabel>{w.label}</CalloutLabel>
-                <CalloutValue>{leaderRow ? leaderRow.name : '—'}</CalloutValue>
+                <CalloutValue>{leaderRow.name}</CalloutValue>
                 {cell && <CalloutSub>{cell.winRatePct}% win rate</CalloutSub>}
-              </Callout>
+              </CalloutLink>
             );
           })}
         </CalloutRow>
       )}
 
+      {board.benchmark && (
+        <BenchmarkBandRow benchmark={board.benchmark} windows={windows} range={ranges.benchmark} />
+      )}
+
       <SectionLabel>
         <span>Every strategy, by horizon</span>
-        <span>win rate vs. buy &amp; hold</span>
+        <Legend>
+          <span>share of assets that beat holding</span>
+          <span>·</span>
+          <span>shading ranks each column</span>
+          <span>·</span>
+          <span>
+            <LeaderDot>★</LeaderDot> leads the horizon
+          </span>
+        </Legend>
       </SectionLabel>
 
       <Body>
@@ -438,13 +624,6 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
             <thead>
               <tr>
                 <th>Strategy</th>
-                <SortHead
-                  label="Assets"
-                  sortKey="assets"
-                  sort={sort}
-                  onSort={setSort}
-                  hint="Distinct assets this rule produced a result for"
-                />
                 <SortHead
                   label="Overall"
                   sortKey="overall"
@@ -471,33 +650,6 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
               </tr>
             </thead>
             <tbody>
-              {board.benchmark && (
-                <BenchmarkRow>
-                  <td>
-                    <StrategyCell>
-                      <BenchmarkName>{board.benchmark.name}</BenchmarkName>
-                      <BenchmarkTag title="Fully invested from the first bar — the baseline every row above tries to beat, not a candidate to rank">
-                        always long · reference
-                      </BenchmarkTag>
-                    </StrategyCell>
-                  </td>
-                  <td>{board.benchmark.assetsCovered}</td>
-                  <td title="Buy & hold's own realized CAGR, pooled across every asset and window">
-                    <Cagr $pct={board.benchmark.overallAvgCagrPct}>
-                      {fmtPct(board.benchmark.overallAvgCagrPct)}/yr
-                    </Cagr>
-                  </td>
-                  <td>
-                    <Dash>—</Dash>
-                  </td>
-                  {windows.map((w) => (
-                    <BenchmarkWindowCell
-                      key={w.id}
-                      cell={board.benchmark!.perWindow.find((c) => c.window === w.id)}
-                    />
-                  ))}
-                </BenchmarkRow>
-              )}
               {rows.map((row) => (
                 <tr key={row.strategyId}>
                   <td>
@@ -508,10 +660,13 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
                       <StrategyKindTag>{STRATEGY_KIND_LABEL[row.kind]}</StrategyKindTag>
                     </StrategyCell>
                   </td>
-                  <td>{row.assetsCovered}</td>
                   <td>
                     <Win
-                      $pct={row.overallWinRatePct}
+                      $color={columnRankColor(
+                        row.overallWinRatePct,
+                        ranges.overall?.min ?? 0,
+                        ranges.overall?.max ?? 100
+                      )}
                       $leader={row.strategyId === board.bestOverall}
                     >
                       {row.strategyId === board.bestOverall && <LeaderDot>★</LeaderDot>}
@@ -528,6 +683,7 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
                       key={w.id}
                       cell={row.perWindow.find((c) => c.window === w.id)}
                       isLeader={board.bestPerWindow[w.id] === row.strategyId}
+                      range={ranges.perWindow.get(w.id)}
                     />
                   ))}
                 </tr>

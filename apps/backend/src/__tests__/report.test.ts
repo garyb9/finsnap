@@ -179,6 +179,36 @@ describe('compactAsset', () => {
     expect(compactAsset(makeAsset()).lastClose).toBe(118_420.12);
     expect(compactAsset(makeAsset()).lastChangePct).toBe(1.23);
   });
+
+  /**
+   * The dashboard carried a trend score and a momentum score but dropped the
+   * Bollinger read, even though the same numbers were already computed for
+   * `/technicals`. Four of the rules it lists are band rules, so whether the
+   * envelope is tight or wide is the context that makes them readable.
+   */
+  it('carries the Bollinger reading through to the dashboard payload', () => {
+    const asset = makeAsset({
+      bollinger: {
+        bandwidth: 4.5678,
+        percentB: 0.87654,
+        widthLabel: 'moderate',
+        positionLabel: 'upper band',
+      },
+    });
+
+    const compact = compactAsset(asset);
+
+    expect(compact.bollinger).toEqual({
+      bandwidth: 4.57,
+      percentB: 0.877,
+      widthLabel: 'moderate',
+      positionLabel: 'upper band',
+    });
+  });
+
+  it('leaves the Bollinger reading absent when the analyzer produced none', () => {
+    expect(compactAsset(makeAsset({ bollinger: undefined })).bollinger).toBeUndefined();
+  });
 });
 
 describe('compactReport', () => {

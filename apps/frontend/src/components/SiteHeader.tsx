@@ -141,6 +141,7 @@ const TABS = [
   { href: '/technicals', label: 'Technicals' },
   { href: '/strategies', label: 'Strategies' },
   { href: '/options', label: 'Options' },
+  { href: '/correlation', label: 'Correlation' },
   { href: '/guide', label: 'Guide' },
 ];
 

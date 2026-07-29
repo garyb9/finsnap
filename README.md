@@ -463,7 +463,7 @@ yarn test
 | `API_TOKEN`               | —                                      | Bearer token for the trigger endpoints. Unset = open |
 | `CRYPTO_SYMBOLS`          | `BTC-USD`                              | Crypto symbols, 365 periods/year                     |
 | `EQUITY_SYMBOLS`          | 22 symbols — see [Universe](#universe) | Equity symbols, 252 periods/year                     |
-| `OPTIONS_SYMBOLS`         | `SPY,QQQ,IWM,GLD,USO,TLT,IBIT`         | Subset to pull options chains for                    |
+| `OPTIONS_SYMBOLS`         | 12 symbols — the liquid subset         | Subset to pull options chains for                    |
 | `BACKTEST_CAPITAL`        | `10000`                                | Starting capital per backtest                        |
 | `BACKTEST_FEE_BPS`        | `5`                                    | Fee per fill, basis points                           |
 | `BACKTEST_SLIPPAGE_BPS`   | `5`                                    | Slippage per fill, basis points                      |

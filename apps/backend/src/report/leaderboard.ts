@@ -48,6 +48,20 @@ export interface BenchmarkWindowCell {
   label: string;
   assetsCovered: number;
   avgCagrPct: number;
+  /**
+   * What holding returned over this window on the typical asset, start to end.
+   *
+   * Two deliberate choices. Total return rather than the annualized rate,
+   * because the annualized figure is the wrong unit to read in a column headed
+   * "1 month" — a good month annualizes to a number that never happened. And
+   * the median rather than the mean, because a universe holding bitcoin does
+   * not have a meaningful mean: BTC's +9,640% over ten years dragged that
+   * average to +643% while the typical asset returned +172%, and it made the
+   * ten-year cell print higher than the twenty-year one.
+   */
+  medianTotalReturnPct: number;
+  /** The same asset's annualized rate — the honest way to compare two windows. */
+  medianCagrPct: number;
 }
 
 export interface BenchmarkSummary {
@@ -65,12 +79,29 @@ export interface StrategyLeaderboard {
   windows: { id: WindowId; label: string }[];
   /** Ranked by overall win rate against buy-and-hold, best first */
   rows: StrategyLeaderboardRow[];
-  /** The strategy that beats buy-and-hold most consistently across the whole universe */
+  /** The highest-ranked strategy across the whole universe — see `bestBeatsBenchmark` */
   bestOverall: string | null;
+  /**
+   * Whether `bestOverall` actually beats buy-and-hold more often than not.
+   *
+   * Ranking first is not the same as winning. On a universe where no rule beats
+   * holding — which is the normal case, and currently every rule here — the top
+   * row is only the one that loses least, and calling it a winner is a lie the
+   * UI would otherwise tell. Read it before writing any superlative.
+   */
+  bestBeatsBenchmark: boolean;
   /** The strategy that wins each individual horizon, where enough assets ran it */
   bestPerWindow: Partial<Record<WindowId, string>>;
   /** Buy-and-hold itself, pooled the same way — null only when the report has no assets */
   benchmark: BenchmarkSummary | null;
+}
+
+/** Middle value, averaging the two middles on an even count. Empty input is 0. */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /**
@@ -177,7 +208,10 @@ function buildBenchmark(report: DailyReport): BenchmarkSummary | null {
   const assets = new Set<string>();
   let cagrSum = 0;
   let cagrCount = 0;
-  const perWindow = new Map<WindowId, { label: string; assetsCovered: number; cagrSum: number }>();
+  const perWindow = new Map<
+    WindowId,
+    { label: string; assetsCovered: number; cagrSum: number; returns: number[]; cagrs: number[] }
+  >();
   let name = 'Buy & Hold';
 
   for (const asset of report.assets) {
@@ -193,11 +227,13 @@ function buildBenchmark(report: DailyReport): BenchmarkSummary | null {
 
       let wAcc = perWindow.get(w.window);
       if (!wAcc) {
-        wAcc = { label: w.label, assetsCovered: 0, cagrSum: 0 };
+        wAcc = { label: w.label, assetsCovered: 0, cagrSum: 0, returns: [], cagrs: [] };
         perWindow.set(w.window, wAcc);
       }
       wAcc.assetsCovered += 1;
       wAcc.cagrSum += w.stats.cagrPct;
+      wAcc.returns.push(w.stats.totalReturnPct);
+      wAcc.cagrs.push(w.stats.cagrPct);
     }
   }
 
@@ -215,6 +251,8 @@ function buildBenchmark(report: DailyReport): BenchmarkSummary | null {
         label: w.label,
         assetsCovered: w.assetsCovered,
         avgCagrPct: round(w.cagrSum / w.assetsCovered),
+        medianTotalReturnPct: round(median(w.returns)),
+        medianCagrPct: round(median(w.cagrs)),
       };
     }).filter((cell): cell is BenchmarkWindowCell => cell !== null),
   };
@@ -231,9 +269,17 @@ function pickBest<T>(items: T[], primary: (t: T) => number, secondary: (t: T) =>
 }
 
 export function buildLeaderboard(report: DailyReport): StrategyLeaderboard {
+  // Ties broken on average excess CAGR, matching `pickBest` below. Without the
+  // tie-break the table's own order could disagree with the row it stars, and
+  // win rates tie constantly — every rule here is scored over the same 220
+  // asset-window pairs, so ties are the rule rather than the exception.
   const rows = [...accumulate(report).values()]
     .map(toRow)
-    .sort((a, b) => b.overallWinRatePct - a.overallWinRatePct);
+    .sort(
+      (a, b) =>
+        b.overallWinRatePct - a.overallWinRatePct ||
+        b.overallAvgExcessCagrPct - a.overallAvgExcessCagrPct
+    );
 
   const universeSize = report.assets.length;
   const minCoverage = Math.ceil(universeSize * MIN_COVERAGE_RATIO);
@@ -269,6 +315,9 @@ export function buildLeaderboard(report: DailyReport): StrategyLeaderboard {
     windows: DAILY_WINDOWS.map((w) => ({ id: w.id, label: w.label })),
     rows,
     bestOverall: bestOverall?.strategyId ?? null,
+    // A win rate is a share of asset-window pairs beaten, so "more often than
+    // not" is the only defensible threshold for calling this a win.
+    bestBeatsBenchmark: (bestOverall?.overallWinRatePct ?? 0) > 50,
     bestPerWindow,
     benchmark: buildBenchmark(report),
   };

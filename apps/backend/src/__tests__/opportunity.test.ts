@@ -137,6 +137,38 @@ describe('computeEdgeScore', () => {
   it('collapses to exactly neutral with zero trades', () => {
     expect(computeEdgeScore([makeWindow(WindowId.Max, 30, 5)], 0)).toBe(50);
   });
+
+  // The shrink exists to withhold credit from a thin record. Applied in both
+  // directions it does the opposite below neutral: a losing rule with three
+  // trades gets lifted toward 50 and outranks a losing rule with three hundred.
+  // On a universe where nothing beats buy-and-hold every score sits under 50,
+  // so that promotion is the normal case rather than an edge case.
+  it('never lifts a below-neutral score just because the sample is thin', () => {
+    const losing = [WindowId.Max, WindowId.Y5, WindowId.Y3].map((id) =>
+      makeWindow(id, 2, 12, { strategyDd: -45, benchmarkDd: -30 })
+    );
+
+    const thin = computeEdgeScore(losing, 2);
+    const rich = computeEdgeScore(losing, 100);
+
+    expect(thin).toBeLessThan(50);
+    expect(thin).toBeLessThanOrEqual(rich);
+  });
+
+  it('still shrinks a thin winning record downward', () => {
+    const winning = [WindowId.Max, WindowId.Y5, WindowId.Y3].map((id) => makeWindow(id, 25, 5));
+
+    expect(computeEdgeScore(winning, 2)).toBeLessThan(computeEdgeScore(winning, 100));
+  });
+
+  it('ranks a thick losing record above a thin one with the same window results', () => {
+    const losing = [WindowId.Max, WindowId.Y5].map((id) =>
+      makeWindow(id, 3, 11, { strategyDd: -40, benchmarkDd: -35 })
+    );
+
+    // Identical history, different sample size: the thin one must not win.
+    expect(computeEdgeScore(losing, 3)).toBeLessThanOrEqual(computeEdgeScore(losing, 300));
+  });
 });
 
 describe('readSignal', () => {

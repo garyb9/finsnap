@@ -302,23 +302,32 @@ const CapitalInput = styled.input`
  */
 const ReturnCell = styled.div`
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: 5px;
   min-width: 0;
+  white-space: nowrap;
 `;
 
-const ReturnValue = styled.span<{ $gain: boolean }>`
-  font-size: 0.76rem;
-  font-weight: 700;
+/**
+ * The two outcomes at the same size, side by side, with the winner carrying the
+ * colour.
+ *
+ * They used to be stacked, the held figure set in 0.58rem underneath — small
+ * enough that the comparison the column exists to make was the hardest thing on
+ * the row to read. Two numbers of equal weight beside each other *are* the
+ * comparison; the green says which one won without anything having to be
+ * subtracted by eye.
+ */
+const Money = styled.span<{ $winner: boolean }>`
+  font-size: 0.74rem;
+  font-weight: ${({ $winner }) => ($winner ? 700 : 500)};
   font-variant-numeric: tabular-nums;
-  color: ${({ $gain }) => ($gain ? theme.colors.success : theme.colors.danger)};
+  color: ${({ $winner }) => ($winner ? theme.colors.success : theme.colors.textMuted)};
 `;
 
-const ReturnVersus = styled.span`
+const Versus = styled.span`
   font-size: 0.58rem;
   color: ${theme.colors.label};
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 `;
 
 const ResultCount = styled.span`
@@ -365,7 +374,9 @@ const AssetRow = styled.div<{ $open: boolean }>`
  * The vote bar is a gauge, not a progress bar — a fixed width keeps it
  * readable instead of stretching across the row on a wide screen.
  */
-const COLUMNS = '14px 108px 100px 72px 88px 46px 48px 116px minmax(150px, 1fr) 100px 58px 104px';
+/* The return column is wider than the rest because it holds two figures side
+   by side rather than one over the other. */
+const COLUMNS = '14px 108px 100px 72px 88px 46px 48px 116px minmax(150px, 1fr) 158px 58px 104px';
 
 const Chevron = styled.span<{ $open: boolean }>`
   font-size: 0.6rem;
@@ -679,6 +690,22 @@ const DetailNote = styled.div`
   color: ${theme.colors.label};
 `;
 
+/** Indicator readings that give the rules below some volatility context. */
+const Readings = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.66rem;
+  color: ${theme.colors.textMuted};
+`;
+
+const Reading = styled.span`
+  b {
+    color: ${theme.colors.text};
+    font-weight: 600;
+  }
+`;
+
 const Notes = styled.ul`
   margin: 8px 0 0;
   padding: 0;
@@ -888,8 +915,13 @@ function AssetEntry({
           {best ? (
             <BestRule>
               <BestRuleName title={best.rationale}>{best.name}</BestRuleName>
+              {/* Trade count sits next to the edge score because the two are only
+                  meaningful together — a 47 off four trades and a 47 off four
+                  hundred are not the same claim, and the score alone hides which
+                  one you are looking at. */}
               <BestRuleMeta $score={best.edgeScore}>
                 edge <b>{best.edgeScore}</b>
+                {best.headline && ` · ${best.headline.numTrades} trades`}
                 {best.headline && ` · ${best.headline.label} ${fmtPct(best.headline.cagrPct)}/yr`}
               </BestRuleMeta>
             </BestRule>
@@ -909,10 +941,13 @@ function AssetEntry({
                 `results, no costs beyond those already modelled, no tax.`
               }
             >
-              <ReturnValue $gain={modelled.strategy >= modelled.holding}>
+              <Money $winner={modelled.strategy >= modelled.holding}>
                 {fmtMoney(modelled.strategy)}
-              </ReturnValue>
-              <ReturnVersus>vs {fmtMoney(modelled.holding)} held</ReturnVersus>
+              </Money>
+              <Versus>vs</Versus>
+              <Money $winner={modelled.holding > modelled.strategy}>
+                {fmtMoney(modelled.holding)}
+              </Money>
             </ReturnCell>
           ) : (
             <FlowNone>—</FlowNone>
@@ -960,8 +995,24 @@ function AssetEntry({
             </div>
           )}
 
-          {/* Says what this list is. Without it "6/19 long" above a list of ten
-              rules reads as a contradiction rather than a truncation. */}
+          {/* Bollinger sits here rather than in the head row because the head is a
+              fixed grid, and because it reads as context for the rules below it:
+              four of them are band rules, and whether the envelope is tight or
+              wide is what decides if they have anything to say today. */}
+          {asset.bollinger && (
+            <Readings>
+              <Reading title="Band width as a percentage of the 20-day average — a volatility regime proxy">
+                Bollinger width <b>{asset.bollinger.bandwidth.toFixed(2)}%</b> (
+                {asset.bollinger.widthLabel})
+              </Reading>
+              <Reading title="Where the last close sits inside the envelope: 0 = lower band, 1 = upper band">
+                %B <b>{asset.bollinger.percentB.toFixed(2)}</b> ({asset.bollinger.positionLabel})
+              </Reading>
+            </Readings>
+          )}
+
+          {/* Says what this list is. Without it the "n long" tally above a list of
+              ten rules reads as a contradiction rather than a truncation. */}
           <DetailNote>
             Top {asset.top.length} of {consensus.votingCount} rules by edge ·{' '}
             {consensus.qualifiedCount} clear the bar to carry weight in the score
@@ -1189,11 +1240,11 @@ export function DailyReportCard({
               hint="The rule with the strongest historical record on this asset"
             />
             <SortHeader
-              label="Return"
+              label="Return vs held"
               sortKey={SortKey.Return}
               sort={sort}
               onSort={setSort}
-              hint="What your capital would have become under the best rule over its headline window"
+              hint="What your capital would have become under the best rule, against simply holding, over the rule's headline window"
             />
             <SortHeader
               label="Today"

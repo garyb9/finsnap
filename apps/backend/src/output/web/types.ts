@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+import type Redis from 'ioredis';
 import type { Config } from '../../config';
 import type { SnapStore } from '../../storage/snapStore';
 import type { ReportStore } from '../../storage/reportStore';
@@ -14,6 +15,8 @@ export interface RouteContext {
   scheduler: SnapScheduler;
   sync: SyncRunner;
   telegram: TelegramOutput;
+  /** Only the correlation route reaches for this directly — bar cache reads, not writes to shared jobs. */
+  redis: Redis;
 }
 
 export type RouteRegistrar = (app: Hono, ctx: RouteContext) => void;

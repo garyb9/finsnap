@@ -1,3 +1,4 @@
+import { STRATEGY_EXAMPLES } from '../../../backtest/examples';
 import { STRATEGIES } from '../../../backtest/strategies';
 import {
   assetInfo,
@@ -58,6 +59,7 @@ export const registerGuideRoutes: RouteRegistrar = (app, { config }) => {
         warmup: s.warmup,
       })),
       metrics: METRIC_GUIDE,
+      examples: STRATEGY_EXAMPLES,
       method: METHOD_NOTES,
       windows: { daily: DAILY_WINDOWS, intraday: INTRADAY_WINDOWS },
       execution: {

@@ -139,3 +139,46 @@ export interface StrategyReport {
   /** Short human-readable justification */
   rationale: string;
 }
+
+// ── Worked examples (field guide) ───────────────────────────────────────────
+
+/** One line of a numeric walkthrough: what is being computed, and with what. */
+export interface WalkthroughStep {
+  label: string;
+  /** LaTeX, with the actual numbers from the dataset already plugged in */
+  formula: string;
+  /** The value that formula evaluates to, pre-formatted for display */
+  result: string;
+}
+
+/** Strategy vs buy-and-hold over the identical fixture window. */
+export interface WalkthroughComparison {
+  strategyTotalReturnPct: number;
+  strategyCagrPct: number;
+  strategyMaxDrawdownPct: number;
+  strategyExposurePct: number;
+  strategyNumTrades: number;
+  buyHoldTotalReturnPct: number;
+  buyHoldCagrPct: number;
+  buyHoldMaxDrawdownPct: number;
+}
+
+/**
+ * A full worked calculation for one strategy: the general rule, a specific
+ * historical bar it fires on, the arithmetic that gets there, and how it
+ * would have done against simply holding the same data.
+ */
+export interface StrategyExample {
+  strategyId: string;
+  name: string;
+  kind: StrategyKind;
+  description: string;
+  dataset: { symbol: string; startDate: string; endDate: string; bars: number };
+  /** The general rule that governs every bar, in LaTeX */
+  ruleFormula: string;
+  /** The bar this walkthrough plugs numbers in from, ISO date */
+  exampleDate: string;
+  steps: WalkthroughStep[];
+  explanation: string;
+  comparison: WalkthroughComparison;
+}

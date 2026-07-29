@@ -52,8 +52,12 @@ const configSchema = z.object({
         'GLD,SLV,USO,UNG,UUP,TLT,IBIT'
     ),
 
-  // Options chains are only pulled for this subset (Yahoo chains are slow to page)
-  optionsSymbols: z.string().default('SPY,QQQ,IWM,GLD,USO,TLT,IBIT'),
+  // Options chains are only pulled for this subset (Yahoo chains are slow to
+  // page). The list is the liquid end of the universe: the four index proxies,
+  // the sectors that carry real open interest, and the metals/energy/rates
+  // instruments. The remaining sector ETFs trade options too, but thinly enough
+  // that most expiries come back reading "thin" anyway.
+  optionsSymbols: z.string().default('SPY,QQQ,IWM,DIA,XLK,XLF,XLE,GLD,SLV,USO,TLT,IBIT'),
 
   // Backtest execution assumptions
   backtestCapital: z.coerce.number().positive().default(10_000),

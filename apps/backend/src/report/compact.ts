@@ -75,6 +75,7 @@ export interface CompactAsset {
   consensus: AssetOpportunity['consensus'];
   tsmom?: { score: number; label: string };
   momentum?: number;
+  bollinger?: AssetOpportunity['bollinger'];
   options?: AssetOpportunity['options'];
   notes: string[];
   /** Highest-scoring strategies for today, longest-standing edge first */
@@ -142,6 +143,11 @@ export function compactAsset(asset: AssetOpportunity, topN = 5): CompactAsset {
     consensus: asset.consensus,
     tsmom: asset.tsmom,
     momentum: asset.momentum,
+    bollinger: asset.bollinger && {
+      ...asset.bollinger,
+      bandwidth: round(asset.bollinger.bandwidth, 2),
+      percentB: round(asset.bollinger.percentB, 3),
+    },
     options: asset.options,
     notes: asset.notes,
     top: asset.daily

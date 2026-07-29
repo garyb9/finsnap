@@ -67,6 +67,13 @@ export interface AssetOpportunity {
   intraday: StrategyReport[];
   tsmom?: { score: number; label: string };
   momentum?: number;
+  /**
+   * Daily Bollinger read — where price sits in the envelope, and how wide the
+   * envelope is. Carried alongside `tsmom` because the dashboard shows a trend
+   * score and a momentum score with no volatility context between them, while
+   * the same numbers were already being computed for `/technicals`.
+   */
+  bollinger?: { bandwidth: number; percentB: number; widthLabel: string; positionLabel: string };
   options?: OptionsContext;
   /** Plain-English observations worth surfacing */
   notes: string[];

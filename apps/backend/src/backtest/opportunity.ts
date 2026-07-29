@@ -58,7 +58,8 @@ export function scoreWindow(result: WindowResult): number {
  * Two corrections keep this honest. Consistency: a rule that beat the benchmark
  * in eight of ten windows deserves more credit than one that won huge in a
  * single lucky window. Sample size: an edge measured over five trades is not an
- * edge, so thin records are shrunk back toward neutral.
+ * edge, so thin records are shrunk back toward neutral — but only ever
+ * downward, see below.
  */
 export function computeEdgeScore(windows: WindowResult[], totalTrades: number): number {
   if (windows.length === 0) return NEUTRAL;
@@ -80,7 +81,20 @@ export function computeEdgeScore(windows: WindowResult[], totalTrades: number): 
     weightedScore * (1 - EDGE_CONSISTENCY_BLEND) + consistency * EDGE_CONSISTENCY_BLEND;
 
   const confidence = clamp(totalTrades / EDGE_CONFIDENCE_TRADES, 0, 1);
-  return clamp(NEUTRAL + (blended - NEUTRAL) * confidence, 0, 100);
+  const shrunk = NEUTRAL + (blended - NEUTRAL) * confidence;
+
+  // Shrink downward only.
+  //
+  // Pulling a thin record toward neutral withholds credit when the record is
+  // *good* — which is the case this was written for. Applied to a record already
+  // below neutral it does the opposite and pays out for the absence of evidence:
+  // on a universe where nothing beats buy-and-hold, every score sits under 50, so
+  // the rule with three trades gets lifted above the rule with three hundred and
+  // a better return. Measured over the harvested history that promoted a 3-9
+  // trade Bollinger variant to the top slot on 8 of 23 assets, 6 of them with
+  // negative excess CAGR. Taking the worse of the two keeps the original
+  // intent — a thin sample can cost points, never earn them.
+  return clamp(Math.min(blended, shrunk), 0, 100);
 }
 
 function readExposure(signals: Signal[], index: number): number {
