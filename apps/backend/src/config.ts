@@ -6,8 +6,9 @@ import { PERIODS_PER_YEAR } from './constants/time';
 export { AssetCategory, AssetClass, TelegramMode };
 
 const configSchema = z.object({
-  // Redis
-  redisUrl: z.string().default('redis://redis:6379'),
+  // Redis. The default serves `yarn dev` on the host; docker-compose overrides
+  // it with the service hostname, which only resolves inside its network.
+  redisUrl: z.string().default('redis://localhost:6379'),
 
   /**
    * Telegram — entirely optional.

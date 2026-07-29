@@ -339,12 +339,26 @@ Labels: `put_stack` / `call_stack` (strong directional skew), `soft_put` / `soft
 
 ```bash
 yarn install
-
-cp apps/backend/.env.example apps/backend/.env
-# Telegram and API_TOKEN are optional — it runs fine with them blank
-
 docker compose up --build
 ```
+
+That is the whole setup. **No `.env` is required** — Telegram and `API_TOKEN` are
+optional, and Compose supplies the Redis URL itself. Copy `apps/backend/.env.example`
+to `apps/backend/.env` only when you want to change something.
+
+### Running on the host instead
+
+`yarn dev` needs a Redis it can reach on `localhost`, which the Compose service provides:
+
+```bash
+yarn dev:local     # starts Redis in Docker, then runs both apps
+```
+
+Or in two steps — `yarn redis` then `yarn dev`. Stop it with `yarn redis:stop`.
+
+The `REDIS_URL` default is `redis://localhost:6379` for exactly this case;
+docker-compose overrides it with `redis://redis:6379`, which only resolves inside its
+own network.
 
 - **API**: `http://localhost:4000`
 - **Dashboard**: `http://localhost:3000`

@@ -4,7 +4,17 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
     container_name: finsnap-backend
-    env_file: apps/backend/.env
+    # Optional: with Telegram and API_TOKEN no longer required, the stack comes
+    # up with no configuration at all. Compose used to abort here when the file
+    # was missing, which made `docker compose up` fail on a fresh clone.
+    env_file:
+      - path: apps/backend/.env
+        required: false
+    environment:
+      # Set here, not in .env: inside the compose network Redis is always
+      # reachable as `redis`, and a .env copied from a local run would point at
+      # localhost and fail. Everything else still comes from .env.
+      REDIS_URL: redis://redis:6379
     ports:
       - '4000:4000'
     restart: unless-stopped

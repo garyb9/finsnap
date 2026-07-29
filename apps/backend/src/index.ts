@@ -19,6 +19,12 @@ function ageOf(timestamp: string | undefined): number {
 /**
  * Rebuild on startup only when the stored artifact is missing or stale, so a
  * restart during a deploy does not re-run the full universe unnecessarily.
+ *
+ * The two jobs run in sequence, not in parallel. They read the same bars
+ * through the same cache, so firing both at once against a cold cache fetches
+ * every symbol twice and doubles the outbound request rate at exactly the
+ * moment there is nothing cached to soften it. Running the snap first warms the
+ * cache the report then reads.
  */
 async function backfillIfStale(
   scheduler: SnapScheduler,
@@ -28,13 +34,15 @@ async function backfillIfStale(
   const snap = await snapStore.getLatest();
   if (ageOf(snap?.timestamp) > STARTUP_SNAP_MAX_AGE_MS) {
     logger.info('no fresh snap on startup — running initial snap');
-    scheduler.runSnap().catch((err) => logger.error(`startup snap failed: ${err}`));
+    // Awaited, but a failure must not skip the report: the report is the
+    // product, and it can be built from bars the snap never got to.
+    await scheduler.runSnap().catch((err) => logger.error(`startup snap failed: ${err}`));
   }
 
   const report = await reportStore.getLatest();
   if (ageOf(report?.generatedAt) > STARTUP_REPORT_MAX_AGE_MS) {
     logger.info('no recent report on startup — building one');
-    scheduler.runReport().catch((err) => logger.error(`startup report failed: ${err}`));
+    await scheduler.runReport().catch((err) => logger.error(`startup report failed: ${err}`));
   }
 }
 
