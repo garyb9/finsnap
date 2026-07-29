@@ -1,193 +1,109 @@
 import { ulid } from 'ulid';
-import { minutesToMilliseconds } from 'date-fns';
 import type Redis from 'ioredis';
-import type { Config } from '../config';
+import type { AssetSpec, Config } from '../config';
 import { createLogger } from '../logger';
-import type { EvmCollector } from '../collectors/evm';
+import { BarCollector } from '../collectors/bars';
 import { fetchOptionsData } from '../collectors/options';
-import { PriceCache } from '../collectors/priceCache';
-import {
-  analyzeWhales,
-  analyzeGas,
-  analyzeVolume,
-  computeNetworkStress,
-} from '../analyzers/onchain';
 import { analyzeOptionsChain } from '../analyzers/options';
-import { analyzeEthPrices, analyzeBtcPrices } from '../analyzers/price';
-import { analyzeEthTsmom, analyzeBtcTsmom } from '../analyzers/tsmom';
-import { computeMood } from '../analyzers/mood';
-import type { FinSnap, SnapWhaleTransfer } from './types';
+import { analyzeAssetBars } from '../analyzers/price';
+import { analyzeTsmom } from '../analyzers/tsmom';
+import type { AssetSnap, FinSnap } from './types';
 
 const log = createLogger('builder');
 
-const SNAP_WINDOW_MS = minutesToMilliseconds(10);
-
+/**
+ * Builds the intraday snapshot: where every tracked asset stands right now
+ * across timeframes, plus options positioning for the equities.
+ *
+ * This is the live view. The backtest-driven daily report is built separately
+ * by `ReportBuilder` — snaps run every few minutes off cached bars, while the
+ * report runs once a session off completed bars.
+ */
 export class SnapBuilder {
-  private priceCache: PriceCache;
+  private bars: BarCollector;
 
   constructor(
-    private evmCollector: EvmCollector,
     private config: Config,
     private redis: Redis
   ) {
-    this.priceCache = new PriceCache(redis);
+    this.bars = new BarCollector(redis);
   }
 
   async build(): Promise<FinSnap> {
-    log.info('building snap...');
+    log.info(`building snap for ${this.config.universe.length} assets...`);
 
-    // 1. Drain EVM collector
-    const evmState = this.evmCollector.drain(SNAP_WINDOW_MS);
-    const latestBlock = evmState.blocks.at(-1);
+    const assets: Record<string, AssetSnap> = {};
 
-    // 2. Fetch options + price history in parallel
-    const [equityResults, ethPriceDataSet, btcPriceDataSet] = await Promise.all([
-      Promise.allSettled(
-        this.config.tickerList.map((ticker) =>
-          fetchOptionsData(ticker, this.redis).then((data) => ({ ticker, data }))
-        )
-      ),
-      this.priceCache.fetch('ETH'),
-      this.priceCache.fetch('BTC'),
-    ]);
-
-    // 3. Analyze on-chain
-    const whaleAnalysis = analyzeWhales(evmState);
-    const gasAnalysis = analyzeGas(evmState);
-    const volumeAnalysis = analyzeVolume(evmState);
-    const networkStress = computeNetworkStress(gasAnalysis, whaleAnalysis, volumeAnalysis);
-
-    log.info(
-      `on-chain: ${evmState.blocks.length} blocks, ` +
-        `gas ${gasAnalysis.avgBaseFeeGwei.toFixed(1)} gwei (${gasAnalysis.trend}), ` +
-        `whales ${whaleAnalysis.totalWhaleTransfers}, stress ${networkStress}`
-    );
-
-    // 4. Analyze options per ticker
-    const equities: FinSnap['equities'] = {};
-    for (const result of equityResults) {
-      if (result.status === 'rejected') {
-        log.warn(`options fetch rejected: ${result.reason}`);
-        continue;
-      }
-      const { ticker, data } = result.value;
-      if (!data) {
-        log.warn(`${ticker}: options data unavailable`);
-        continue;
-      }
-      const analysis = analyzeOptionsChain(data);
-      equities[ticker] = {
-        price: data.price,
-        description: analysis.description,
-        expirations: analysis.expirations,
-      };
-    }
-
-    // 5. Analyze ETH / BTC price (optional — skipped if CoinGecko unavailable)
-    let ethField: FinSnap['eth'] | undefined;
-    let btcField: FinSnap['btc'] | undefined;
-    let moodField: FinSnap['mood'] | undefined;
-
-    const hasEthPriceData = ethPriceDataSet.day1 !== null || ethPriceDataSet.day7 !== null;
-    if (hasEthPriceData) {
+    for (const spec of this.config.universe) {
       try {
-        const ethAnalysis = analyzeEthPrices(ethPriceDataSet);
-        const ethTsmom = analyzeEthTsmom(ethAnalysis.timeframes);
-        const mood = computeMood(
-          gasAnalysis,
-          whaleAnalysis,
-          volumeAnalysis,
-          ethAnalysis.marketMomentum
-        );
-
-        ethField = {
-          currentPrice: ethAnalysis.currentPrice,
-          timeframes: ethAnalysis.timeframes,
-          tsmom: { score: ethTsmom.score, label: ethTsmom.label },
-        };
-        moodField = mood;
+        const snap = await this.buildAsset(spec);
+        if (snap) assets[spec.label] = snap;
       } catch (err) {
-        log.warn(`price analysis failed (snap continues): ${err}`);
+        log.warn(`${spec.symbol}: snap failed (continuing): ${err}`);
       }
     }
 
-    const hasBtcPriceData = btcPriceDataSet.day1 !== null || btcPriceDataSet.day7 !== null;
-    if (hasBtcPriceData) {
-      try {
-        const btcAnalysis = analyzeBtcPrices(btcPriceDataSet);
-        const btcTsmom = analyzeBtcTsmom(btcAnalysis.timeframes);
-        btcField = {
-          currentPrice: btcAnalysis.currentPrice,
-          timeframes: btcAnalysis.timeframes,
-          tsmom: { score: btcTsmom.score, label: btcTsmom.label },
-        };
-      } catch (err) {
-        log.warn(`BTC price analysis failed (snap continues): ${err}`);
-      }
-    }
-
-    // 6. Assemble FinSnap — all BigInt fields converted to number for JSON safety
-    const blockHeight = latestBlock ? Number(latestBlock.number) : 0;
-
-    const transfers: SnapWhaleTransfer[] = evmState.blocks
-      .flatMap((b) => b.whaleTransfers)
-      .map((t) => ({
-        hash: t.hash,
-        from: t.from,
-        to: t.to,
-        valueEth: t.valueEth,
-        blockNumber: Number(t.blockNumber),
-        timestamp: t.timestamp,
-      }));
+    const tracked = Object.values(assets);
+    const bullish = tracked.filter((a) => {
+      const daily = a.timeframes.find((tf) => tf.timeframe === 'D');
+      return daily?.ema20AboveEma50 ?? false;
+    }).length;
 
     const snap: FinSnap = {
       id: ulid(),
       timestamp: new Date().toISOString(),
-      blockHeight,
-      version: '1.0',
-      onChain: {
-        whale: {
-          count: whaleAnalysis.totalWhaleTransfers,
-          totalValueEth: Math.round(whaleAnalysis.totalWhaleVolumeEth * 100) / 100,
-          transfers,
-          energyScore: Math.round(whaleAnalysis.whaleEnergy),
-        },
-        gas: {
-          averageGwei: Math.round(gasAnalysis.avgBaseFeeGwei * 10) / 10,
-          trend: gasAnalysis.trend,
-          congestionScore: Math.round(gasAnalysis.networkStress),
-        },
-        volume: {
-          txCount: volumeAnalysis.totalTransactions,
-          totalValueEth: Math.round(volumeAnalysis.totalVolumeEth * 100) / 100,
-          intensityScore: Math.round(volumeAnalysis.intensity),
-        },
-        networkStress,
+      version: '2.0',
+      assets,
+      market: {
+        breadth: tracked.length > 0 ? Math.round((bullish / tracked.length) * 100) : 0,
+        avgTsmom:
+          tracked.length > 0
+            ? Math.round(tracked.reduce((s, a) => s + a.tsmom.score, 0) / tracked.length)
+            : 50,
+        assetsTracked: tracked.length,
       },
-      equities,
-      signals: {
-        networkStress,
-        whaleEnergy: Math.round(whaleAnalysis.whaleEnergy),
-        volumeIntensity: Math.round(volumeAnalysis.intensity),
-        gasCongestion: Math.round(gasAnalysis.networkStress),
-        overallSentiment: Math.round(
-          (networkStress +
-            whaleAnalysis.whaleEnergy +
-            volumeAnalysis.intensity +
-            gasAnalysis.networkStress) /
-            4
-        ),
-      },
-      ...(ethField && { eth: ethField }),
-      ...(btcField && { btc: btcField }),
-      ...(moodField && { mood: moodField }),
     };
 
     log.info(
-      `snap ${snap.id} built — block ${blockHeight}, ${Object.keys(equities).length} tickers` +
-        (ethField ? `, ETH $${ethField.currentPrice.toFixed(0)}` : '') +
-        (btcField ? `, BTC $${btcField.currentPrice.toFixed(0)}` : '')
+      `snap ${snap.id} built — ${tracked.length} assets, breadth ${snap.market.breadth}%, ` +
+        `avg TSMOM ${snap.market.avgTsmom}`
     );
+    return snap;
+  }
+
+  private async buildAsset(spec: AssetSpec): Promise<AssetSnap | null> {
+    const bars = await this.bars.fetchSymbol(spec.symbol);
+    if (!bars.daily && !bars.hourly) {
+      log.warn(`${spec.symbol}: no bar data available`);
+      return null;
+    }
+
+    const analysis = analyzeAssetBars(spec.label, bars);
+    const tsmom = analyzeTsmom(analysis.timeframes, spec.label);
+    const daily = analysis.timeframes.find((tf) => tf.timeframe === 'D');
+
+    const snap: AssetSnap = {
+      symbol: spec.symbol,
+      label: spec.label,
+      assetClass: spec.assetClass,
+      currentPrice: analysis.currentPrice,
+      changePct: daily?.changePct ?? 0,
+      timeframes: analysis.timeframes,
+      tsmom: { score: tsmom.score, label: tsmom.label },
+      momentum: analysis.marketMomentum,
+    };
+
+    if (spec.hasOptions) {
+      const data = await fetchOptionsData(spec.symbol, this.redis);
+      if (data) {
+        const chain = analyzeOptionsChain(data);
+        snap.description = chain.description;
+        snap.options = { price: data.price, expirations: chain.expirations };
+      } else {
+        log.warn(`${spec.symbol}: options data unavailable`);
+      }
+    }
+
     return snap;
   }
 }

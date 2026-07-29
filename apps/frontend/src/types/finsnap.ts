@@ -1,14 +1,31 @@
+import type {
+  AssetClass,
+  CrossLabel,
+  OptionsSide,
+  OptionsSkewLabel,
+  Timeframe,
+  Trajectory,
+} from './enums';
+
 export type BollingerBand = { upper: number; lower: number };
 
 export type TimeframeAnalysis = {
-  timeframe: string;
+  timeframe: Timeframe;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
   changePct: number;
+  volume: number;
+  sma20: number;
+  stdDev20: number;
   ema20: number;
   ema50: number;
   ema20AboveEma50: boolean;
-  ema20Trajectory: string;
-  ema50Trajectory: string;
-  emaCrossLabel: string;
+  ema20Trajectory: Trajectory;
+  ema50Trajectory: Trajectory;
+  emaCrossLabel: CrossLabel;
+  rsi14: number;
   bollinger: {
     middle: number;
     std2: BollingerBand;
@@ -16,12 +33,6 @@ export type TimeframeAnalysis = {
     bandwidth: number;
     percentB: number;
   };
-};
-
-export type AssetSnap = {
-  currentPrice: number;
-  timeframes: TimeframeAnalysis[];
-  tsmom: { score: number; label: string };
 };
 
 export type OptionsLegStats = {
@@ -32,8 +43,9 @@ export type OptionsLegStats = {
 };
 
 export type OptionsSkewInsight = {
-  label: 'call_stack' | 'put_stack' | 'soft_call' | 'soft_put' | 'balanced' | 'thin';
-  dominantSide: 'calls' | 'puts' | 'none';
+  label: OptionsSkewLabel;
+  dominantSide: OptionsSide;
+  skewScore: number;
   wallStrike: number;
   distanceToSpotPct: number;
   nearSpotCluster: boolean;
@@ -48,28 +60,31 @@ export type OptionsExpiration = {
   insight?: OptionsSkewInsight;
 };
 
+export type AssetSnap = {
+  symbol: string;
+  label: string;
+  assetClass: AssetClass;
+  description?: string;
+  currentPrice: number;
+  changePct: number;
+  timeframes: TimeframeAnalysis[];
+  tsmom: { score: number; label: string };
+  momentum: number;
+  options?: {
+    price: number;
+    expirations: OptionsExpiration[];
+  };
+};
+
 export type FinSnap = {
   id: string;
   timestamp: string;
-  blockHeight: number;
   version: string;
-  onChain: {
-    whale: { count: number; totalValueEth: number; energyScore: number };
-    gas: { averageGwei: number; trend: string; congestionScore: number };
-    volume: { txCount: number; totalValueEth: number; intensityScore: number };
-    networkStress: number;
+  /** Keyed by display label — BTC, SPY, … */
+  assets: Record<string, AssetSnap>;
+  market: {
+    breadth: number;
+    avgTsmom: number;
+    assetsTracked: number;
   };
-  equities: Record<
-    string,
-    { price: number; description?: string; expirations: OptionsExpiration[] }
-  >;
-  signals: {
-    networkStress: number;
-    whaleEnergy: number;
-    volumeIntensity: number;
-    gasCongestion: number;
-    overallSentiment: number;
-  };
-  eth?: AssetSnap;
-  btc?: AssetSnap;
 };

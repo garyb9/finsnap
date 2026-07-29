@@ -1,42 +1,14 @@
-import type { WhaleTransfer } from '../collectors/types';
+import {
+  CrossLabel,
+  OptionsSide,
+  OptionsSkewLabel,
+  Timeframe,
+  Trajectory,
+} from '../constants/enums';
 
-// --- On-chain analyzer output types (ported from soul-bot) ---
+export { CrossLabel, OptionsSide, OptionsSkewLabel, Timeframe, Trajectory };
 
-export interface WhaleAnalysis {
-  totalWhaleTransfers: number;
-  totalWhaleVolumeEth: number;
-  largestTransfer: WhaleTransfer | null;
-  uniqueWhaleAddresses: number;
-  /** 0-100: how active whales are relative to baseline */
-  whaleEnergy: number;
-  topWhales: { address: string; totalEth: number; txCount: number }[];
-}
-
-export interface GasAnalysis {
-  avgBaseFeeGwei: number;
-  minBaseFeeGwei: number;
-  maxBaseFeeGwei: number;
-  medianBaseFeeGwei: number;
-  avgUtilization: number;
-  /** 0-100: network congestion score */
-  networkStress: number;
-  trend: 'rising' | 'falling' | 'stable';
-}
-
-export interface VolumeAnalysis {
-  totalVolumeEth: number;
-  avgVolumePerBlock: number;
-  totalTransactions: number;
-  avgTxPerBlock: number;
-  peakBlockVolume: { blockNumber: bigint; volumeEth: number };
-  character: 'quiet' | 'steady' | 'active' | 'surging' | 'explosive';
-  /** 0-100 intensity score */
-  intensity: number;
-}
-
-// --- Price analysis types (ported from soul-bot) ---
-
-export type Timeframe = '5M' | '1H' | '4H' | 'D' | 'W' | 'M';
+// --- Price analysis types ---
 
 export interface BollingerBand {
   upper: number;
@@ -58,17 +30,20 @@ export interface TimeframeAnalysis {
   close: number;
   high: number;
   low: number;
+  /** Change across the most recent completed bar of this timeframe */
   changePct: number;
-  volumeUsd: number;
+  volume: number;
   sma20: number;
   stdDev20: number;
   bollinger: BollingerBands;
   ema20: number;
   ema50: number;
   ema20AboveEma50: boolean;
-  emaCrossLabel: string;
-  ema20Trajectory: string;
-  ema50Trajectory: string;
+  emaCrossLabel: CrossLabel;
+  ema20Trajectory: Trajectory;
+  ema50Trajectory: Trajectory;
+  /** Wilder RSI(14) on this timeframe */
+  rsi14: number;
 }
 
 export interface AssetAnalysis {
@@ -76,8 +51,6 @@ export interface AssetAnalysis {
   timeframes: TimeframeAnalysis[];
   marketMomentum: number;
 }
-
-export type EthAnalysis = AssetAnalysis;
 
 export interface TsmomSignal {
   score: number;
@@ -91,29 +64,7 @@ export interface TsmomSignal {
   };
 }
 
-export interface MoodDimension {
-  value: number;
-  label: string;
-}
-
-export interface MoodVector {
-  fearGreed: MoodDimension;
-  networkStress: MoodDimension;
-  whaleEnergy: MoodDimension;
-  volumeCharacter: MoodDimension;
-  priceMomentum: MoodDimension;
-  overallTone: MoodDimension;
-}
-
 // --- Options analyzer output types ---
-
-export type OptionsSkewLabel =
-  | 'put_stack'
-  | 'call_stack'
-  | 'soft_put'
-  | 'soft_call'
-  | 'balanced'
-  | 'thin';
 
 export interface OptionsSkewInsight {
   /** High-level label for how options are stacking at this expiry */
@@ -124,7 +75,7 @@ export interface OptionsSkewInsight {
    */
   skewScore: number;
   /** Which side is dominant when there is a clear skew */
-  dominantSide: 'calls' | 'puts' | 'none';
+  dominantSide: OptionsSide;
   /** Puts/calls ratios (volume + OI) used to derive skewScore */
   volRatio: number;
   oiRatio: number;

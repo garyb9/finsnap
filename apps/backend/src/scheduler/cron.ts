@@ -2,45 +2,73 @@ import cron from 'node-cron';
 import { CronExpressionParser } from 'cron-parser';
 import type { Config } from '../config';
 import type { SnapBuilder } from '../snapshot/builder';
+import type { ReportBuilder } from '../report/builder';
 import type { SnapStore } from '../storage/snapStore';
+import type { ReportStore } from '../storage/reportStore';
 import type { TelegramOutput } from '../output/telegram';
 import { createLogger } from '../logger';
 import type { FinSnap } from '../snapshot/types';
+import type { DailyReport } from '../report/types';
 
 const log = createLogger('scheduler');
 
 function formatCountdown(ms: number): string {
   const totalSec = Math.round(ms / 1000);
-  const m = Math.floor(totalSec / 60);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
+  if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
 }
 
+/**
+ * Runs two independent jobs:
+ *
+ *   snap   — the live market view, every few minutes off cached bars.
+ *   report — the backtest-driven daily report, once per session before the
+ *            open, so its signals are actionable at that open.
+ *
+ * The report is scheduled in an explicit timezone. Left to the container's
+ * clock, "before the open" silently becomes "during lunch" the moment the host
+ * region or daylight saving changes.
+ */
 export class SnapScheduler {
-  private task: cron.ScheduledTask | null = null;
+  private snapTask: cron.ScheduledTask | null = null;
+  private reportTask: cron.ScheduledTask | null = null;
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
-  private cronExpression: string = '';
+  private snapRunning = false;
+  private reportRunning = false;
 
   constructor(
     private config: Config,
     private builder: SnapBuilder,
+    private reportBuilder: ReportBuilder,
     private store: SnapStore,
+    private reportStore: ReportStore,
     private telegram: TelegramOutput
   ) {}
 
   start(): void {
-    this.cronExpression = this.config.snapCron;
+    const { snapCron, reportCron, reportTimezone } = this.config;
 
-    if (!cron.validate(this.cronExpression)) {
-      throw new Error(`Invalid cron expression: ${this.cronExpression}`);
-    }
+    if (!cron.validate(snapCron)) throw new Error(`Invalid snap cron: ${snapCron}`);
+    if (!cron.validate(reportCron)) throw new Error(`Invalid report cron: ${reportCron}`);
 
-    log.info(`scheduling snaps with cron: ${this.cronExpression}`);
+    log.info(`snap cron: ${snapCron}`);
+    log.info(`report cron: ${reportCron} (${reportTimezone})`);
 
-    this.task = cron.schedule(this.cronExpression, async () => {
-      await this.runSnap();
+    this.snapTask = cron.schedule(snapCron, () => {
+      this.runSnap().catch((err) => log.error(`scheduled snap failed: ${err}`));
     });
+
+    this.reportTask = cron.schedule(
+      reportCron,
+      () => {
+        this.runReport().catch((err) => log.error(`scheduled report failed: ${err}`));
+      },
+      { timezone: reportTimezone }
+    );
 
     this.startCountdown();
   }
@@ -50,45 +78,88 @@ export class SnapScheduler {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;
     }
-    if (this.task) {
-      this.task.stop();
-      this.task = null;
-      log.info('stopped');
+    this.snapTask?.stop();
+    this.reportTask?.stop();
+    this.snapTask = null;
+    this.reportTask = null;
+    log.info('stopped');
+  }
+
+  /** Build, store and publish a live snapshot. */
+  async runSnap(): Promise<FinSnap> {
+    // Snaps fetch bars for the whole universe; overlapping runs would double
+    // the outbound request rate for no benefit.
+    if (this.snapRunning) {
+      log.warn('snap already in progress — skipping this trigger');
+      const latest = await this.store.getLatest();
+      if (latest) return latest;
+    }
+
+    this.snapRunning = true;
+    try {
+      log.info('generating snap...');
+      const snap = await this.builder.build();
+      await this.store.saveSnap(snap);
+
+      try {
+        await this.telegram.publishSnap(snap);
+      } catch (err) {
+        log.error(`telegram publish failed (snap still saved): ${err}`);
+      }
+
+      log.info(`snap ${snap.id} complete`);
+      return snap;
+    } finally {
+      this.snapRunning = false;
     }
   }
 
-  /** Manually trigger a snap (also used by the cron job and POST /snap/trigger) */
-  async runSnap(): Promise<FinSnap> {
-    log.info('generating snap...');
-
-    const snap = await this.builder.build();
-    await this.store.saveSnap(snap);
-
-    try {
-      await this.telegram.publish(snap);
-    } catch (err) {
-      log.error(`telegram publish failed (snap still saved): ${err}`);
+  /** Build, store and publish the daily backtest report. */
+  async runReport(): Promise<DailyReport> {
+    if (this.reportRunning) {
+      log.warn('report already in progress — skipping this trigger');
+      const latest = await this.reportStore.getLatest();
+      if (latest) return latest;
     }
 
-    log.info(`snap ${snap.id} complete`);
-    return snap;
+    this.reportRunning = true;
+    try {
+      log.info('generating daily report...');
+      const report = await this.reportBuilder.build();
+      await this.reportStore.save(report);
+
+      try {
+        await this.telegram.publishReport(report);
+      } catch (err) {
+        log.error(`telegram publish failed (report still saved): ${err}`);
+      }
+
+      log.info(`report ${report.id} complete`);
+      return report;
+    } finally {
+      this.reportRunning = false;
+    }
   }
 
   private startCountdown(): void {
-    this.logNextRun();
-    this.countdownTimer = setInterval(() => {
-      this.logNextRun();
-    }, 30_000);
+    this.logNextRuns();
+    this.countdownTimer = setInterval(() => this.logNextRuns(), 60_000);
   }
 
-  private logNextRun(): void {
-    try {
-      const expr = CronExpressionParser.parse(this.cronExpression);
-      const next = expr.next().toDate();
-      const diff = next.getTime() - Date.now();
-      log.info(`next run: ${next.toISOString()} (in ${formatCountdown(diff)})`);
-    } catch {
-      // ignore parse errors
-    }
+  private logNextRuns(): void {
+    const describe = (expr: string, tz?: string): string => {
+      try {
+        const parsed = CronExpressionParser.parse(expr, tz ? { tz } : undefined);
+        const next = parsed.next().toDate();
+        return `${next.toISOString()} (in ${formatCountdown(next.getTime() - Date.now())})`;
+      } catch {
+        return 'unknown';
+      }
+    };
+
+    log.info(
+      `next snap: ${describe(this.config.snapCron)} | ` +
+        `next report: ${describe(this.config.reportCron, this.config.reportTimezone)}`
+    );
   }
 }

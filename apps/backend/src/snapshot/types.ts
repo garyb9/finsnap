@@ -1,76 +1,39 @@
-import type {
-  OptionsExpirationAnalysis,
-  TimeframeAnalysis,
-  MoodDimension,
-} from '../analyzers/types';
-
-/** JSON-serializable whale transfer (blockNumber as number, not bigint) */
-export interface SnapWhaleTransfer {
-  hash: string;
-  from: string;
-  to: string;
-  valueEth: number;
-  blockNumber: number;
-  timestamp: number;
-}
+import type { OptionsExpirationAnalysis, TimeframeAnalysis, TsmomSignal } from '../analyzers/types';
+import type { AssetClass } from '../config';
 
 export interface AssetSnap {
+  /** Yahoo symbol — BTC-USD, SPY, ... */
+  symbol: string;
+  /** Display label — BTC, SPY, ... */
+  label: string;
+  assetClass: AssetClass;
+  description?: string;
   currentPrice: number;
+  /** Change across the most recent completed daily bar */
+  changePct: number;
   timeframes: TimeframeAnalysis[];
   tsmom: { score: number; label: string };
+  /** 0-100 bullish-structure share across timeframes */
+  momentum: number;
+  /** Present for tickers with an options chain */
+  options?: {
+    price: number;
+    expirations: OptionsExpirationAnalysis[];
+  };
 }
 
 export interface FinSnap {
   id: string;
   timestamp: string;
-  blockHeight: number;
-  version: '1.0';
-  onChain: {
-    whale: {
-      count: number;
-      totalValueEth: number;
-      transfers: SnapWhaleTransfer[];
-      energyScore: number;
-    };
-    gas: {
-      averageGwei: number;
-      trend: 'rising' | 'falling' | 'stable';
-      congestionScore: number;
-    };
-    volume: {
-      txCount: number;
-      totalValueEth: number;
-      intensityScore: number;
-    };
-    networkStress: number;
-  };
-  equities: Record<
-    string,
-    {
-      price: number;
-      description?: string;
-      expirations: OptionsExpirationAnalysis[];
-    }
-  >;
-  signals: {
-    networkStress: number;
-    whaleEnergy: number;
-    volumeIntensity: number;
-    gasCongestion: number;
-    overallSentiment: number;
-  };
-  /** ETH price analysis — present when CoinGecko data is available */
-  eth?: AssetSnap;
-  /** BTC price analysis — present when CoinGecko data is available */
-  btc?: AssetSnap;
-  /** Market mood vector — present when price analysis is available */
-  mood?: {
-    fearGreed: MoodDimension;
-    networkStress: MoodDimension;
-    whaleEnergy: MoodDimension;
-    volumeCharacter: MoodDimension;
-    priceMomentum: MoodDimension;
-    overallTone: MoodDimension;
+  version: '2.0';
+  /** Keyed by display label — BTC, SPY, ... */
+  assets: Record<string, AssetSnap>;
+  market: {
+    /** Percentage of tracked assets with bullish EMA structure on the daily */
+    breadth: number;
+    /** Mean TSMOM score across tracked assets */
+    avgTsmom: number;
+    assetsTracked: number;
   };
 }
 
@@ -78,3 +41,5 @@ export interface SnapMeta {
   id: string;
   timestamp: string;
 }
+
+export type { TsmomSignal };

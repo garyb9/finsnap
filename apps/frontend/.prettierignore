@@ -1,0 +1,8 @@
+# Prettier resolves this file from the working directory, and the frontend's
+# format script runs as `prettier --write .` from here — so the repo-root
+# .prettierignore never applies. Without this file, 85 of the 117 files
+# formatted are Next.js build output.
+.next
+next-env.d.ts
+node_modules
+coverage

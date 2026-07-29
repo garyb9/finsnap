@@ -44,10 +44,10 @@ export function LoadingStateContent() {
         <Dot $delay={0.2} />
         <Dot $delay={0.4} />
       </LoadingDots>
-      <h2>Collecting &amp; analyzing data…</h2>
+      <h2>Building the first report…</h2>
       <p>
-        The engine is building the first snapshot — polling Ethereum blocks and options chains. This
-        usually takes under a minute.
+        Fetching price history and running every strategy across every lookback window. A cold start
+        takes about a minute.
       </p>
     </LoadingState>
   );

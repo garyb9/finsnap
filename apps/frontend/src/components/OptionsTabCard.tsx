@@ -3,7 +3,8 @@ import styled from 'styled-components';
 import { CardTitle, ExpTableScroll, ExpTable } from './Card';
 import { fmtNum, fmtK } from '../lib/format';
 import { theme } from '../styles/theme';
-import type { FinSnap, OptionsSkewInsight } from '../types/finsnap';
+import { OptionsSide, OptionsSkewLabel } from '../types/enums';
+import type { AssetSnap, OptionsSkewInsight } from '../types/finsnap';
 
 // ---------- Styled ----------
 
@@ -96,15 +97,15 @@ const NoData = styled.div`
   color: ${theme.colors.label};
 `;
 
-const InsightCell = styled.td<{ $side: 'calls' | 'puts' | 'none'; $soft?: boolean }>`
+const InsightCell = styled.td<{ $side: OptionsSide; $soft?: boolean }>`
   min-width: 200px;
   width: 20%;
   color: ${({ $side, $soft }) =>
     $soft
       ? theme.colors.textMuted
-      : $side === 'calls'
+      : $side === OptionsSide.Calls
         ? theme.colors.success
-        : $side === 'puts'
+        : $side === OptionsSide.Puts
           ? theme.colors.danger
           : theme.colors.label} !important;
 `;
@@ -127,15 +128,15 @@ const NearSpotBadge = styled.span`
 function InsightContent({ insight }: { insight?: OptionsSkewInsight }) {
   if (
     !insight ||
-    insight.label === 'balanced' ||
-    insight.label === 'thin' ||
-    insight.dominantSide === 'none'
+    insight.label === OptionsSkewLabel.Balanced ||
+    insight.label === OptionsSkewLabel.Thin ||
+    insight.dominantSide === OptionsSide.None
   ) {
     return <span style={{ color: theme.colors.label }}>—</span>;
   }
   const { dominantSide, wallStrike, distanceToSpotPct, nearSpotCluster, label } = insight;
-  const isSoft = label === 'soft_call' || label === 'soft_put';
-  const arrow = dominantSide === 'calls' ? '↑' : '↓';
+  const isSoft = label === OptionsSkewLabel.SoftCall || label === OptionsSkewLabel.SoftPut;
+  const arrow = dominantSide === OptionsSide.Calls ? '↑' : '↓';
   const sign = distanceToSpotPct >= 0 ? '+' : '';
   return (
     <>
@@ -152,28 +153,31 @@ function InsightContent({ insight }: { insight?: OptionsSkewInsight }) {
 
 // ---------- Component ----------
 
-type EquityEntry = FinSnap['equities'][string];
-
 interface Props {
-  equities: FinSnap['equities'];
+  assets: AssetSnap[];
 }
 
-export function OptionsTabCard({ equities }: Props) {
-  const tickers = Object.keys(equities);
-  const [active, setActive] = useState(tickers[0] ?? '');
+export function OptionsTabCard({ assets }: Props) {
+  // Only assets that actually carry a chain get a tab.
+  const withChains = assets.filter((a) => a.options && a.options.expirations.length > 0);
+  const [active, setActive] = useState(0);
 
-  if (tickers.length === 0) return null;
+  if (withChains.length === 0) return null;
 
-  const data: EquityEntry = equities[active] ?? equities[tickers[0]];
+  const asset = withChains[Math.min(active, withChains.length - 1)];
+  const data = {
+    price: asset.options?.price ?? asset.currentPrice,
+    expirations: asset.options?.expirations ?? [],
+  };
 
   return (
     <Wrap>
       <Header>
         <CardTitle style={{ margin: 0, whiteSpace: 'nowrap' }}>Options</CardTitle>
         <TabBar>
-          {tickers.map((t) => (
-            <Tab key={t} $active={t === active} onClick={() => setActive(t)}>
-              {t}
+          {withChains.map((a, i) => (
+            <Tab key={a.symbol} $active={a.symbol === asset.symbol} onClick={() => setActive(i)}>
+              {a.label}
             </Tab>
           ))}
         </TabBar>
@@ -181,10 +185,10 @@ export function OptionsTabCard({ equities }: Props) {
 
       <PriceRow>
         <PriceNum>${fmtNum(data.price, 2)}</PriceNum>
-        <TickerLabel>{active}</TickerLabel>
+        <TickerLabel>{asset.label}</TickerLabel>
       </PriceRow>
 
-      {data.description && <Description>{data.description}</Description>}
+      {asset.description && <Description>{asset.description}</Description>}
 
       <Body>
         {data.expirations.length === 0 ? (
@@ -208,13 +212,17 @@ export function OptionsTabCard({ equities }: Props) {
               <tbody>
                 {data.expirations.slice(0, 12).map((exp) => {
                   const insightLabel = exp.insight?.label;
-                  const isSoft = insightLabel === 'soft_call' || insightLabel === 'soft_put';
-                  const side: 'calls' | 'puts' | 'none' =
-                    insightLabel === 'call_stack' || insightLabel === 'soft_call'
-                      ? 'calls'
-                      : insightLabel === 'put_stack' || insightLabel === 'soft_put'
-                        ? 'puts'
-                        : 'none';
+                  const isSoft =
+                    insightLabel === OptionsSkewLabel.SoftCall ||
+                    insightLabel === OptionsSkewLabel.SoftPut;
+                  const side: OptionsSide =
+                    insightLabel === OptionsSkewLabel.CallStack || isSoft
+                      ? insightLabel === OptionsSkewLabel.SoftPut
+                        ? OptionsSide.Puts
+                        : OptionsSide.Calls
+                      : insightLabel === OptionsSkewLabel.PutStack
+                        ? OptionsSide.Puts
+                        : OptionsSide.None;
                   return (
                     <tr key={exp.date}>
                       <td>{exp.date}</td>

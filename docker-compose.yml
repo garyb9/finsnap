@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-    container_name: monorepo-backend
+    container_name: finsnap-backend
     env_file: apps/backend/.env
     ports:
       - '4000:4000'
@@ -16,13 +16,13 @@ services:
       start_period: 10s
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
 
   frontend:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile.dev
-    container_name: monorepo-frontend
+    container_name: finsnap-frontend
     ports:
       - '3000:3000'
     environment:
@@ -58,12 +58,17 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: monorepo-redis
+    container_name: finsnap-redis
     ports:
       - '6379:6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   redis_data:

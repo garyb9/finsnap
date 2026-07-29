@@ -1,122 +1,128 @@
 /**
- * Time-Series Momentum (TSMOM) for assets (ETH, BTC, ...).
- * Ported from soul-bot. Output: 0-100 (>50 = bullish continuation, <50 = bearish).
+ * Time-Series Momentum (TSMOM) — a live read on trend strength across
+ * timeframes. Output: 0-100 (>50 = bullish continuation, <50 = bearish).
+ *
+ * This is the discretionary cousin of the `abs_momentum` backtest strategy:
+ * same underlying idea, but blended across timeframes and reported as a score
+ * rather than a position.
  */
 
 import { createLogger } from '../logger';
-import type { TimeframeAnalysis, Timeframe, TsmomSignal } from './types';
+import { TSMOM_COMPONENT_WEIGHTS, TSMOM_LABELS, TSMOM_TIMEFRAME_WEIGHTS } from '../constants';
+import { clamp } from '../lib/math';
+import { pickBand } from '../lib/format';
+import { Timeframe, Trajectory } from '../constants/enums';
+import type { TimeframeAnalysis, TsmomSignal } from './types';
 
 const log = createLogger('tsmom');
 
-const EVAL_TFS: Timeframe[] = ['5M', '1H', '4H', 'D', 'W'];
+const EVAL_TIMEFRAMES: Timeframe[] = [
+  Timeframe.M5,
+  Timeframe.H1,
+  Timeframe.H4,
+  Timeframe.D,
+  Timeframe.W,
+];
 
-const TF_WEIGHTS: Record<Timeframe, number> = {
-  '5M': 0.5,
-  '1H': 1,
-  '4H': 1.5,
-  D: 2,
-  W: 2.5,
-  M: 3,
+const NEUTRAL = 50;
+
+/** Percent move that counts as a full-strength directional signal. */
+const FULL_MOVE_PCT = 3;
+
+/** Bollinger bandwidth below which a squeeze bonus applies. */
+const TIGHT_BANDWIDTH = 2;
+const SQUEEZE_BONUS = 5;
+
+const NEUTRAL_SIGNAL: TsmomSignal = {
+  score: NEUTRAL,
+  label: 'no data',
+  components: {
+    directional: NEUTRAL,
+    emaStructure: NEUTRAL,
+    emaTrajectory: NEUTRAL,
+    acceleration: NEUTRAL,
+    bbConfirmation: NEUTRAL,
+  },
 };
 
-function tsmomLabel(score: number): string {
-  if (score >= 75) return 'strong continuation';
-  if (score >= 60) return 'continuation';
-  if (score >= 45) return 'indecision';
-  if (score >= 30) return 'fading';
-  return 'reversal pressure';
+function weightOf(timeframe: Timeframe): number {
+  return TSMOM_TIMEFRAME_WEIGHTS[timeframe] ?? 1;
 }
 
-function analyzeAssetTsmom(timeframes: TimeframeAnalysis[], assetLabel: string): TsmomSignal {
-  const tfs = timeframes.filter((t): t is TimeframeAnalysis => EVAL_TFS.includes(t.timeframe));
+/** Weighted average of a per-timeframe signal in [-1, 1], mapped onto 0-100. */
+function weightedScore(
+  timeframes: TimeframeAnalysis[],
+  signalOf: (tf: TimeframeAnalysis) => number
+): number {
+  let sum = 0;
+  let total = 0;
 
-  if (tfs.length === 0) {
-    return {
-      score: 50,
-      label: 'no data',
-      components: {
-        directional: 50,
-        emaStructure: 50,
-        emaTrajectory: 50,
-        acceleration: 50,
-        bbConfirmation: 50,
-      },
-    };
+  for (const tf of timeframes) {
+    const weight = weightOf(tf.timeframe);
+    sum += signalOf(tf) * weight;
+    total += weight;
   }
 
-  // 1. Directional alignment (25%)
-  let dirSum = 0,
-    dirTotal = 0;
-  for (const tf of tfs) {
-    const w = TF_WEIGHTS[tf.timeframe] ?? 1;
-    const signal = Math.max(-1, Math.min(1, tf.changePct / 3));
-    dirSum += signal * w;
-    dirTotal += w;
-  }
-  const directional = 50 + (dirSum / dirTotal) * 50;
+  return total > 0 ? NEUTRAL + (sum / total) * NEUTRAL : NEUTRAL;
+}
 
-  // 2. EMA structure (25%)
-  let emaSum = 0,
-    emaTotal = 0;
-  for (const tf of tfs) {
-    const w = TF_WEIGHTS[tf.timeframe] ?? 1;
-    emaSum += (tf.ema20AboveEma50 ? 1 : -1) * w;
-    emaTotal += w;
-  }
-  const emaStructure = 50 + (emaSum / emaTotal) * 50;
+/** Is the short-horizon move outrunning the long-horizon one, or fading? */
+function accelerationScore(timeframes: TimeframeAnalysis[]): number {
+  if (timeframes.length < 2) return NEUTRAL;
 
-  // 3. EMA trajectory (20%)
-  let trajSum = 0,
-    trajTotal = 0;
-  for (const tf of tfs) {
-    const w = TF_WEIGHTS[tf.timeframe] ?? 1;
-    const e20 = tf.ema20Trajectory === 'rising' ? 1 : tf.ema20Trajectory === 'falling' ? -1 : 0;
-    const e50 = tf.ema50Trajectory === 'rising' ? 1 : tf.ema50Trajectory === 'falling' ? -1 : 0;
-    trajSum += (e20 * 0.6 + e50 * 0.4) * w;
-    trajTotal += w;
-  }
-  const emaTrajectory = 50 + (trajSum / trajTotal) * 50;
+  const short = timeframes[0].changePct;
+  const long = timeframes[timeframes.length - 1].changePct;
 
-  // 4. Acceleration / exhaustion (15%)
-  let acceleration = 50;
-  if (tfs.length >= 2) {
-    const shortRet = tfs[0].changePct;
-    const longRet = tfs[tfs.length - 1].changePct;
-    if (shortRet > 0 && longRet > 0) acceleration = shortRet >= longRet ? 80 : 65;
-    else if (shortRet < 0 && longRet < 0) acceleration = shortRet <= longRet ? 20 : 35;
-    else if (shortRet > 0 && longRet <= 0) acceleration = 60;
-    else acceleration = 40;
-  }
+  if (short > 0 && long > 0) return short >= long ? 80 : 65;
+  if (short < 0 && long < 0) return short <= long ? 20 : 35;
+  return short > 0 ? 60 : 40;
+}
 
-  // 5. BB confirmation (15%)
-  const primaryTf = tfs[tfs.length - 1];
-  const pctB = primaryTf.bollinger.percentB;
-  const bw = primaryTf.bollinger.bandwidth;
-  let bbConfirmation = 50;
-  if (primaryTf.changePct > 0) {
-    bbConfirmation = 50 + (pctB - 0.5) * 40;
-    if (bw < 2) bbConfirmation += 5;
-  } else {
-    bbConfirmation = 50 - (0.5 - pctB) * 40;
-    if (bw < 2) bbConfirmation -= 5;
-  }
-  bbConfirmation = Math.max(0, Math.min(100, bbConfirmation));
+/** Does the Bollinger position confirm the direction of the move? */
+function bollingerConfirmation(primary: TimeframeAnalysis): number {
+  const { percentB, bandwidth } = primary.bollinger;
+  const rising = primary.changePct > 0;
 
-  const score = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(
-        directional * 0.25 +
-          emaStructure * 0.25 +
-          emaTrajectory * 0.2 +
-          acceleration * 0.15 +
-          bbConfirmation * 0.15
-      )
+  let score = rising ? NEUTRAL + (percentB - 0.5) * 40 : NEUTRAL - (0.5 - percentB) * 40;
+
+  if (bandwidth < TIGHT_BANDWIDTH) score += rising ? SQUEEZE_BONUS : -SQUEEZE_BONUS;
+
+  return clamp(score, 0, 100);
+}
+
+function trajectorySignal(label: Trajectory): number {
+  if (label === Trajectory.Rising) return 1;
+  if (label === Trajectory.Falling) return -1;
+  return 0;
+}
+
+export function analyzeTsmom(timeframes: TimeframeAnalysis[], assetLabel: string): TsmomSignal {
+  const evaluated = timeframes.filter((tf) => EVAL_TIMEFRAMES.includes(tf.timeframe));
+  if (evaluated.length === 0) return NEUTRAL_SIGNAL;
+
+  const directional = weightedScore(evaluated, (tf) => clamp(tf.changePct / FULL_MOVE_PCT, -1, 1));
+  const emaStructure = weightedScore(evaluated, (tf) => (tf.ema20AboveEma50 ? 1 : -1));
+  const emaTrajectory = weightedScore(
+    evaluated,
+    (tf) => trajectorySignal(tf.ema20Trajectory) * 0.6 + trajectorySignal(tf.ema50Trajectory) * 0.4
+  );
+  const acceleration = accelerationScore(evaluated);
+  const bbConfirmation = bollingerConfirmation(evaluated[evaluated.length - 1]);
+
+  const w = TSMOM_COMPONENT_WEIGHTS;
+  const score = Math.round(
+    clamp(
+      directional * w.directional +
+        emaStructure * w.emaStructure +
+        emaTrajectory * w.emaTrajectory +
+        acceleration * w.acceleration +
+        bbConfirmation * w.bbConfirmation,
+      0,
+      100
     )
   );
 
-  const label = tsmomLabel(score);
+  const label = pickBand(TSMOM_LABELS, score).label;
   log.info(`${assetLabel} TSMOM: ${score} (${label})`);
 
   return {
@@ -130,12 +136,4 @@ function analyzeAssetTsmom(timeframes: TimeframeAnalysis[], assetLabel: string):
       bbConfirmation: Math.round(bbConfirmation),
     },
   };
-}
-
-export function analyzeEthTsmom(timeframes: TimeframeAnalysis[]): TsmomSignal {
-  return analyzeAssetTsmom(timeframes, 'ETH');
-}
-
-export function analyzeBtcTsmom(timeframes: TimeframeAnalysis[]): TsmomSignal {
-  return analyzeAssetTsmom(timeframes, 'BTC');
 }

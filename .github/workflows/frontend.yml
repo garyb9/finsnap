@@ -1,0 +1,104 @@
+name: Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/frontend/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'turbo.json'
+      - '.github/workflows/frontend.yml'
+  pull_request:
+    paths:
+      - 'apps/frontend/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'turbo.json'
+      - '.github/workflows/frontend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  verify:
+    name: Lint, typecheck, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Lint
+        run: yarn workspace @monorepo/frontend lint
+
+      - name: Typecheck
+        run: yarn workspace @monorepo/frontend type-check
+
+      - name: Build
+        env:
+          # The build must not depend on a reachable API. Pages fetch on the
+          # client today, so this is only baked in as a default; if the app
+          # moves to server-side rendering this becomes a real dependency and
+          # the build will need a live URL.
+          NEXT_PUBLIC_API_URL: http://localhost:4000
+        run: yarn workspace @monorepo/frontend build
+
+  # ---------------------------------------------------------------------------
+  # Deploy — not yet wired up.
+  #
+  # Vercel is the intended target. Two ways to do it, and the choice matters:
+  #
+  #   a) Vercel's own Git integration — no workflow needed at all, Vercel builds
+  #      on push. Simplest, but the build then happens outside this pipeline and
+  #      can ship even when `verify` fails.
+  #   b) Deploy from here with the Vercel CLI, gated on `verify`. More moving
+  #      parts, but nothing reaches production without passing CI first.
+  #
+  # (b) is why this job exists. To fill it in:
+  #   - add VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID to repo secrets
+  #   - set NEXT_PUBLIC_API_URL (and later the Supabase anon key) in the Vercel
+  #     project, not here — they differ per environment
+  #   - turn OFF Vercel's Git integration, or both paths will deploy and race
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy frontend
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Placeholder
+        run: |
+          echo "Frontend deploy is not configured yet."
+          echo "See the comment block above this job for what goes here."
+
+      # - uses: actions/checkout@v4
+      #
+      # - uses: actions/setup-node@v4
+      #   with:
+      #     node-version: ${{ env.NODE_VERSION }}
+      #     cache: yarn
+      #
+      # - name: Deploy to Vercel
+      #   env:
+      #     VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      #     VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      #   run: |
+      #     npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      #     npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      #     npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

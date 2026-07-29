@@ -1,0 +1,99 @@
+import type { OptionsSkewInsight } from '../analyzers/types';
+import type { AssetClass } from '../config';
+import type { StrategyReport } from '../backtest/types';
+import { BarInterval, SignalAction, Verdict } from '../constants/enums';
+
+export { Verdict };
+
+export interface Consensus {
+  /** 0-100: edge-weighted share of strategies currently positioned long */
+  score: number;
+  verdict: Verdict;
+  /** Summed edge weight of strategies holding a long */
+  longWeight: number;
+  /** Summed edge weight of strategies sitting in cash */
+  flatWeight: number;
+  longCount: number;
+  votingCount: number;
+  /** Strategies that flipped long on the last completed bar */
+  freshEntries: number;
+  /** Strategies that flipped flat on the last completed bar */
+  freshExits: number;
+}
+
+/** Compact options context attached to the report for equity tickers. */
+export interface OptionsContext {
+  nearestExpiry: string;
+  pcRatio: number;
+  insight?: OptionsSkewInsight;
+}
+
+export interface AssetOpportunity {
+  symbol: string;
+  label: string;
+  assetClass: AssetClass;
+  description?: string;
+  lastClose: number;
+  lastChangePct: number;
+  /** Last completed bar analyzed — the report never reasons past this */
+  lastBarTime: number;
+  historyStart: number;
+  barsAnalyzed: number;
+  consensus: Consensus;
+  /** Daily-bar strategy reports, best opportunity first */
+  daily: StrategyReport[];
+  /** Hourly-bar strategy reports, when enough intraday history exists */
+  intraday: StrategyReport[];
+  tsmom?: { score: number; label: string };
+  momentum?: number;
+  options?: OptionsContext;
+  /** Plain-English observations worth surfacing */
+  notes: string[];
+}
+
+/** A single actionable line: one strategy firing on one asset. */
+export interface Opportunity {
+  symbol: string;
+  label: string;
+  strategyId: string;
+  strategyName: string;
+  interval: BarInterval.Daily | BarInterval.Hourly;
+  action: SignalAction.Enter | SignalAction.Exit;
+  opportunityScore: number;
+  edgeScore: number;
+  entryPrice: number;
+  rationale: string;
+}
+
+export interface DailyReport {
+  id: string;
+  /** Trading date the report covers — the last completed session */
+  date: string;
+  generatedAt: string;
+  version: '1.0';
+  execution: {
+    initialCapital: number;
+    feeBps: number;
+    slippageBps: number;
+  };
+  assets: AssetOpportunity[];
+  /** Fresh entries and exits across the whole universe, strongest first */
+  topOpportunities: Opportunity[];
+  summary: {
+    assetsAnalyzed: number;
+    strategiesRun: number;
+    backtestsRun: number;
+    freshEntries: number;
+    freshExits: number;
+    /** Mean consensus score across the universe — a crude breadth read */
+    avgConsensus: number;
+    bullishAssets: number;
+    bearishAssets: number;
+  };
+}
+
+export interface ReportMeta {
+  id: string;
+  date: string;
+  generatedAt: string;
+}

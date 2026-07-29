@@ -17,7 +17,7 @@
     "lint:md:fix": "markdownlint --fix \"README.md\"",
     "format": "turbo run format",
     "test": "turbo run test",
-    "prep": "yarn build && yarn lint:fix && yarn format",
+    "prep": "yarn format && yarn lint:fix && yarn test && yarn build",
     "ci": "turbo run ci"
   },
   "engines": {

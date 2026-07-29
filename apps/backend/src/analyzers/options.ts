@@ -1,4 +1,5 @@
 import type { OptionsData } from '../collectors/types';
+import { OptionsSide, OptionsSkewLabel } from '../constants/enums';
 import type { OptionsAnalysis, OptionsLegStats, OptionsSkewInsight } from './types';
 
 /** Weighted mean: sum(v[i] * w[i]) / sum(w[i]) */
@@ -45,9 +46,9 @@ function computeSkewInsight(
   const THIN_NOTIONAL_THRESHOLD = 5_000;
   if (totalVolume + totalOi < THIN_NOTIONAL_THRESHOLD || spotPrice <= 0) {
     return {
-      label: 'thin',
+      label: OptionsSkewLabel.Thin,
       skewScore: 0,
-      dominantSide: 'none',
+      dominantSide: OptionsSide.None,
       volRatio: 1,
       oiRatio: 1,
       wallStrike: 0,
@@ -64,11 +65,11 @@ function computeSkewInsight(
   // Combine volume + OI into a symmetric skew score
   const skewScore = 0.5 * (Math.log(Math.max(volRatio, eps)) + Math.log(Math.max(oiRatio, eps)));
 
-  let dominantSide: OptionsSkewInsight['dominantSide'] = 'none';
-  if (skewScore > 0.05) dominantSide = 'puts';
-  else if (skewScore < -0.05) dominantSide = 'calls';
+  let dominantSide: OptionsSide = OptionsSide.None;
+  if (skewScore > 0.05) dominantSide = OptionsSide.Puts;
+  else if (skewScore < -0.05) dominantSide = OptionsSide.Calls;
 
-  const dominantLeg = dominantSide === 'puts' ? puts : calls;
+  const dominantLeg = dominantSide === OptionsSide.Puts ? puts : calls;
   const wallStrike = dominantLeg.weightedMeanStrike;
   const distanceToSpotAbs = wallStrike - spotPrice;
   const distanceToSpotPct = (distanceToSpotAbs / spotPrice) * 100;
@@ -80,11 +81,15 @@ function computeSkewInsight(
   const PUT_DOM_THRESHOLD = 1.3;
   const CALL_DOM_THRESHOLD = 1 / PUT_DOM_THRESHOLD;
 
-  let label: OptionsSkewInsight['label'] = 'balanced';
+  let label: OptionsSkewLabel = OptionsSkewLabel.Balanced;
   let note: string | undefined;
 
-  if (volRatio >= PUT_DOM_THRESHOLD && oiRatio >= PUT_DOM_THRESHOLD && dominantSide === 'puts') {
-    label = 'put_stack';
+  if (
+    volRatio >= PUT_DOM_THRESHOLD &&
+    oiRatio >= PUT_DOM_THRESHOLD &&
+    dominantSide === OptionsSide.Puts
+  ) {
+    label = OptionsSkewLabel.PutStack;
     if (distanceToSpotAbs < 0 && Math.abs(distanceToSpotPct) <= 20) {
       note = 'Puts stacking below spot — potential dip zone';
     } else if (distanceToSpotAbs < 0) {
@@ -95,9 +100,9 @@ function computeSkewInsight(
   } else if (
     volRatio <= CALL_DOM_THRESHOLD &&
     oiRatio <= CALL_DOM_THRESHOLD &&
-    dominantSide === 'calls'
+    dominantSide === OptionsSide.Calls
   ) {
-    label = 'call_stack';
+    label = OptionsSkewLabel.CallStack;
     if (distanceToSpotAbs > 0 && Math.abs(distanceToSpotPct) <= 20) {
       note = 'Calls stacking above spot — potential squeeze/ceiling';
     } else if (distanceToSpotAbs > 0) {
@@ -105,14 +110,22 @@ function computeSkewInsight(
     } else {
       note = 'Calls dominant but not clearly above spot';
     }
-  } else if (dominantSide === 'puts' && skewScore >= 0.08 && Math.abs(distanceToSpotPct) <= 12) {
-    label = 'soft_put';
+  } else if (
+    dominantSide === OptionsSide.Puts &&
+    skewScore >= 0.08 &&
+    Math.abs(distanceToSpotPct) <= 12
+  ) {
+    label = OptionsSkewLabel.SoftPut;
     note = distanceToSpotAbs < 0 ? 'Mild put lean below spot' : 'Mild put lean near/above spot';
-  } else if (dominantSide === 'calls' && skewScore <= -0.08 && Math.abs(distanceToSpotPct) <= 12) {
-    label = 'soft_call';
+  } else if (
+    dominantSide === OptionsSide.Calls &&
+    skewScore <= -0.08 &&
+    Math.abs(distanceToSpotPct) <= 12
+  ) {
+    label = OptionsSkewLabel.SoftCall;
     note = distanceToSpotAbs > 0 ? 'Mild call lean above spot' : 'Mild call lean near/below spot';
   } else {
-    label = 'balanced';
+    label = OptionsSkewLabel.Balanced;
     note = 'No strong skew between puts and calls';
   }
 

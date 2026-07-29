@@ -1,0 +1,111 @@
+name: Backend
+
+# Scoped to the backend so a frontend-only change does not re-run the backtests,
+# and vice versa. Shared files (lockfile, turbo config) trigger both.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/backend/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'turbo.json'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    paths:
+      - 'apps/backend/**'
+      - 'package.json'
+      - 'yarn.lock'
+      - 'turbo.json'
+      - '.github/workflows/backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  verify:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Check formatting
+        # --check, not --write: CI reports drift, it does not silently rewrite
+        # the tree and then pass.
+        run: npx prettier --check .
+
+      - name: Lint
+        run: yarn workspace @monorepo/backend lint
+
+      - name: Typecheck
+        # Covers src/__tests__ too, which `build` excludes from its output.
+        run: npx tsc --noEmit --project apps/backend/tsconfig.json
+
+      - name: Test
+        # No Redis service and no network fetches: the suite runs against
+        # fixtures, and the integration specs skip themselves without creds.
+        run: yarn workspace @monorepo/backend test
+
+      - name: Build
+        run: yarn workspace @monorepo/backend build
+
+  # ---------------------------------------------------------------------------
+  # Deploy — not yet wired up.
+  #
+  # The plan is Supabase for Postgres plus a scheduled runner for the pre-market
+  # report. Nothing here runs until that decision is made concrete; the job
+  # exists so the shape of the pipeline is visible and the secrets have an
+  # obvious home.
+  #
+  # When filling this in:
+  #   - add SUPABASE_ACCESS_TOKEN / SUPABASE_DB_PASSWORD / SUPABASE_PROJECT_REF
+  #     to repository secrets
+  #   - `supabase db push` for migrations (none exist yet — see storage/types.ts
+  #     for the port a Postgres adapter has to satisfy)
+  #   - decide where the report job actually runs: a scheduled workflow in this
+  #     repo, or a long-lived container on Fly/Railway. They are different
+  #     answers with different trade-offs, see README "Hosting".
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy backend
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Placeholder
+        run: |
+          echo "Backend deploy is not configured yet."
+          echo "See the comment block above this job for what goes here."
+
+      # - uses: actions/checkout@v4
+      #
+      # - name: Set up Supabase CLI
+      #   uses: supabase/setup-cli@v1
+      #   with:
+      #     version: latest
+      #
+      # - name: Push database migrations
+      #   env:
+      #     SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      #     SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      #   run: supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      #
+      # - name: Deploy container / functions
+      #   run: echo "flyctl deploy, or supabase functions deploy, or ..."

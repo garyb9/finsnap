@@ -1,23 +1,26 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
+import {
+  REDIS_KEYS,
+  SNAP_HISTORY_MAX,
+  SNAP_LATEST_TTL_SECONDS,
+  SNAP_TTL_SECONDS,
+} from '../constants';
 import type { FinSnap } from '../snapshot/types';
+import type { StoragePort } from './types';
 
 const log = createLogger('snap-store');
 
-const HISTORY_MAX = 100;
-const SNAP_TTL = 86400; // 24h for individual snaps
-const LATEST_TTL = 7200; // 2h for latest snap
-
+/** Persistence for live snapshots. See `ReportStore` on why this takes a port. */
 export class SnapStore {
-  constructor(private redis: Redis) {}
+  constructor(private storage: StoragePort) {}
 
   async saveSnap(snap: FinSnap): Promise<void> {
     const json = JSON.stringify(snap);
     try {
-      await this.redis.set(`snap:${snap.id}`, json, 'EX', SNAP_TTL);
-      await this.redis.set('snap:latest', json, 'EX', LATEST_TTL);
-      await this.redis.lpush('snap:history', snap.id);
-      await this.redis.ltrim('snap:history', 0, HISTORY_MAX - 1);
+      await this.storage.set(`${REDIS_KEYS.snap}:${snap.id}`, json, SNAP_TTL_SECONDS);
+      await this.storage.set(REDIS_KEYS.snapLatest, json, SNAP_LATEST_TTL_SECONDS);
+      await this.storage.listPush(REDIS_KEYS.snapHistory, snap.id);
+      await this.storage.listTrim(REDIS_KEYS.snapHistory, SNAP_HISTORY_MAX);
       log.info(`saved snap ${snap.id}`);
     } catch (err) {
       log.error(`failed to save snap ${snap.id}: ${err}`);
@@ -26,41 +29,32 @@ export class SnapStore {
   }
 
   async getLatest(): Promise<FinSnap | null> {
-    try {
-      const raw = await this.redis.get('snap:latest');
-      return raw ? (JSON.parse(raw) as FinSnap) : null;
-    } catch (err) {
-      log.warn(`failed to get latest snap: ${err}`);
-      return null;
-    }
+    return this.read(REDIS_KEYS.snapLatest);
   }
 
   async getById(id: string): Promise<FinSnap | null> {
-    try {
-      const raw = await this.redis.get(`snap:${id}`);
-      return raw ? (JSON.parse(raw) as FinSnap) : null;
-    } catch (err) {
-      log.warn(`failed to get snap ${id}: ${err}`);
-      return null;
-    }
+    return this.read(`${REDIS_KEYS.snap}:${id}`);
   }
 
   async getHistory(limit = 10): Promise<FinSnap[]> {
-    try {
-      const ids = await this.redis.lrange('snap:history', 0, limit - 1);
-      const snaps = await Promise.all(ids.map((id) => this.getById(id)));
-      return snaps.filter((s): s is FinSnap => s !== null);
-    } catch (err) {
-      log.warn(`failed to get snap history: ${err}`);
-      return [];
-    }
+    const ids = await this.storage.listRange(REDIS_KEYS.snapHistory, limit);
+    const snaps = await Promise.all(ids.map((id) => this.getById(id)));
+    return snaps.filter((s): s is FinSnap => s !== null);
   }
 
   async count(): Promise<number> {
+    return this.storage.listLength(REDIS_KEYS.snapHistory);
+  }
+
+  private async read(key: string): Promise<FinSnap | null> {
+    const raw = await this.storage.get(key);
+    if (!raw) return null;
+
     try {
-      return await this.redis.llen('snap:history');
-    } catch {
-      return 0;
+      return JSON.parse(raw) as FinSnap;
+    } catch (err) {
+      log.warn(`failed to parse snap at ${key}: ${err}`);
+      return null;
     }
   }
 }

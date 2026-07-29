@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
+import { Timeframe, Trajectory } from '../types/enums';
 import type { AssetSnap, TimeframeAnalysis } from '../types/finsnap';
 
 // ---------- Helpers ----------
@@ -17,8 +18,8 @@ function sentimentLabel(tf: TimeframeAnalysis): string {
   score += Math.max(-20, Math.min(20, tf.changePct * 10));
   if (tf.ema20AboveEma50) score += 10;
   else score -= 10;
-  if (tf.ema20Trajectory === 'rising') score += 5;
-  else if (tf.ema20Trajectory === 'falling') score -= 5;
+  if (tf.ema20Trajectory === Trajectory.Rising) score += 5;
+  else if (tf.ema20Trajectory === Trajectory.Falling) score -= 5;
   score += (tf.bollinger.percentB - 0.5) * 20;
   score = Math.max(0, Math.min(100, score));
   const labels = [
@@ -41,8 +42,8 @@ function sentimentColor(tf: TimeframeAnalysis): string {
   score += Math.max(-20, Math.min(20, tf.changePct * 10));
   if (tf.ema20AboveEma50) score += 10;
   else score -= 10;
-  if (tf.ema20Trajectory === 'rising') score += 5;
-  else if (tf.ema20Trajectory === 'falling') score -= 5;
+  if (tf.ema20Trajectory === Trajectory.Rising) score += 5;
+  else if (tf.ema20Trajectory === Trajectory.Falling) score -= 5;
   score += (tf.bollinger.percentB - 0.5) * 20;
   score = Math.max(0, Math.min(100, score));
   if (score >= 60) return '#4ade80';
@@ -226,13 +227,13 @@ const Conclusion = styled.div`
 const DISPLAY_TFS = ['5M', '1H', '4H', 'D'];
 
 interface Props {
-  symbol: string;
-  data: AssetSnap;
+  asset: AssetSnap;
 }
 
-export function PriceCard({ symbol, data }: Props) {
+export function PriceCard({ asset: data }: Props) {
   const displayTfs = data.timeframes.filter((tf) => DISPLAY_TFS.includes(tf.timeframe));
-  const daily = data.timeframes.find((tf) => tf.timeframe === 'D') ?? data.timeframes.at(-1);
+  const daily =
+    data.timeframes.find((tf) => tf.timeframe === Timeframe.D) ?? data.timeframes.at(-1);
 
   if (!daily) return null;
 
@@ -241,7 +242,7 @@ export function PriceCard({ symbol, data }: Props) {
 
   return (
     <Wrap>
-      <Label>{symbol} Price</Label>
+      <Label>{data.label} Price</Label>
       <PriceNum>${fmtPrice(data.currentPrice)}</PriceNum>
 
       <TsmomRow>

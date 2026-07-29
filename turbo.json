@@ -5,13 +5,8 @@
       "cache": false
     },
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**",
-        ".next/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**"]
     },
     "lint": {
       "outputs": []
@@ -20,19 +15,11 @@
       "outputs": []
     },
     "test": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "coverage/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
     },
     "ci": {
-      "dependsOn": [
-        "build",
-        "lint",
-        "test"
-      ],
+      "dependsOn": ["build", "lint", "test"],
       "outputs": []
     }
   }

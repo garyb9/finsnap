@@ -1,78 +1,50 @@
-// --- On-chain types (ported from soul-bot) ---
+import { BarInterval } from '../constants/enums';
 
-export interface WhaleTransfer {
-  hash: string;
-  from: string;
-  to: string;
-  valueEth: number;
-  blockNumber: bigint;
-  timestamp: number;
-}
+// --- OHLCV bar types ---
 
-export interface BlockData {
-  number: bigint;
-  timestamp: number;
-  baseFeeGwei: number;
-  gasUsed: bigint;
-  gasLimit: bigint;
-  transactionCount: number;
-  totalValueEth: number;
-  whaleTransfers: WhaleTransfer[];
-}
+export { BarInterval };
 
-/** Rolling window of collected on-chain data */
-export interface CollectorState {
-  blocks: BlockData[];
-  startTime: number;
-  endTime: number;
-  chainId: number;
-}
-
-/** Any data source implements this interface */
-export interface Collector {
-  readonly name: string;
-  readonly blockCount: number;
-  start(): Promise<void>;
-  stop(): void;
-  backfill(count: number): Promise<void>;
-  drain(windowMs: number): CollectorState;
-}
-
-// --- Price data types (asset-agnostic, ETH/BTC/etc) ---
-
-export interface PricePoint {
-  timestamp: number;
-  price: number;
-}
-
-export interface VolumePoint {
-  timestamp: number;
+export interface Bar {
+  /** Bar open time, unix ms */
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
   volume: number;
 }
 
-export interface AssetPriceHistory {
-  prices: PricePoint[];
-  volumes: VolumePoint[];
-}
-
-export interface AssetPriceDataSet {
-  /** 5-min granularity, last 24h — covers 5M / 1H / 4H / D timeframes */
-  day1: AssetPriceHistory | null;
-  /** Hourly granularity, last 7d — covers W timeframe */
-  day7: AssetPriceHistory | null;
-  /** Hourly granularity, last 30d — covers M timeframe */
-  day30: AssetPriceHistory | null;
-}
-
-export interface AssetPriceCachedBucket {
+export interface BarSeries {
+  symbol: string;
+  interval: BarInterval;
+  bars: Bar[];
+  /** Unix ms when the series was fetched */
   fetchedAt: number;
-  data: AssetPriceHistory;
 }
 
-// Backwards-compatible ETH-specific aliases
-export type EthPriceHistory = AssetPriceHistory;
-export type EthPriceDataSet = AssetPriceDataSet;
-export type EthPriceCachedBucket = AssetPriceCachedBucket;
+/**
+ * Columnar form used for Redis storage — roughly 40% smaller than an array of
+ * objects once serialized, which matters for max-history daily series.
+ */
+export interface PackedBarSeries {
+  symbol: string;
+  interval: BarInterval;
+  fetchedAt: number;
+  t: number[];
+  o: number[];
+  h: number[];
+  l: number[];
+  c: number[];
+  v: number[];
+}
+
+/** All intervals for one symbol. Any interval may be null if the fetch failed. */
+export interface SymbolBars {
+  symbol: string;
+  intraday5m: BarSeries | null;
+  hourly: BarSeries | null;
+  daily: BarSeries | null;
+}
 
 // --- Options types ---
 
