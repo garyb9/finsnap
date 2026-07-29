@@ -154,6 +154,21 @@ Twenty configurations across five families:
 Parameters are deliberately conventional rather than optimized. Tuned values would score
 better in the backtest and mean less out of sample.
 
+### TSMOM, and holding it to account
+
+FinSnap reports a live TSMOM score per asset — a 0-100 trend reading blended across 5m,
+1H, 4H, D and W. That number was never validated: nothing checked whether acting on it
+would have made money.
+
+`tsmom_55` and `tsmom_50` fix that by trading the score, so the backtest judges it like
+any other rule. The version in the registry is deliberately **single-timeframe**: intraday
+history reaches back two years at best, so a multi-timeframe form could not be tested over
+the windows that matter. It applies the same five components with the same weights to one
+series, which on daily bars is the daily-only TSMOM.
+
+So the backtest answers "does this scoring approach have an edge here", not "is the live
+number exactly right". They are named separately because they are not the same thing.
+
 ### Adding a strategy
 
 One line in `apps/backend/src/backtest/strategies/index.ts`:
@@ -236,7 +251,7 @@ finsnap/
 │   │   └── src/
 │   │       ├── backtest/         engine · metrics · windows · opportunity · runner
 │   │       │   ├── indicators/   movingAverages · oscillators · bands · volatility
-│   │       │   └── strategies/   trend · meanReversion · breakout · registry
+│   │       │   └── strategies/   trend · meanReversion · breakout · tsmom · registry
 │   │       ├── collectors/       bars/ (chart · pack) · options · yahooSession
 │   │       ├── analyzers/        price · tsmom · options · resample
 │   │       ├── report/           builder · consensus · compact · format/
@@ -249,32 +264,33 @@ finsnap/
 │   │       │   └── telegram/     commands · formatSnap
 │   │       ├── storage/          types (port) · redisStore · stores
 │   │       └── scheduler/        cron (snap + report)
-│   └── frontend/                 Next.js dashboard
+│   └── frontend/                 Next.js — dashboard · technicals · options · guide
 └── docker-compose.yml            backend + frontend + Redis
 ```
 
 ## API
 
-| Method | Path                    | Description                                              |
-| ------ | ----------------------- | -------------------------------------------------------- |
-| `GET`  | `/`                     | Service info + endpoint map                              |
-| `GET`  | `/health`               | Health check, last snap and report                       |
-| `GET`  | `/report`               | Latest daily report (compact)                            |
-| `GET`  | `/report?detail=full`   | Full report — every strategy, every window               |
-| `GET`  | `/report?strategies=N`  | Compact report with N strategies per asset               |
-| `GET`  | `/report/opportunities` | Today's fired entries and exits                          |
-| `GET`  | `/report/asset/:label`  | Full backtest detail for one asset                       |
-| `GET`  | `/report/date/:date`    | Report for a trading date (`YYYY-MM-DD`)                 |
-| `GET`  | `/reports?limit=N`      | Report history metadata                                  |
-| `POST` | `/report/trigger`       | Rebuild the daily report now                             |
-| `GET`  | `/snap`                 | Latest live snapshot                                     |
-| `GET`  | `/snap/:label`          | Live snapshot for one asset                              |
-| `GET`  | `/snaps?limit=N`        | Snapshot history                                         |
-| `POST` | `/snap/trigger`         | Trigger a fresh snapshot                                 |
-| `GET`  | `/strategies`           | Strategy registry, windows and universe                  |
-| `GET`  | `/guide`                | Field guide — assets, strategy families, metrics, method |
-| `POST` | `/sync`                 | Refresh every asset, then rebuild snapshot and report    |
-| `GET`  | `/sync`                 | Progress of the current or last sync                     |
+| Method | Path                      | Description                                              |
+| ------ | ------------------------- | -------------------------------------------------------- |
+| `GET`  | `/`                       | Service info + endpoint map                              |
+| `GET`  | `/health`                 | Health check, last snap and report                       |
+| `GET`  | `/report`                 | Latest daily report (compact)                            |
+| `GET`  | `/report?detail=full`     | Full report — every strategy, every window               |
+| `GET`  | `/report?strategies=N`    | Compact report with N strategies per asset               |
+| `GET`  | `/report/opportunities`   | Today's fired entries and exits                          |
+| `GET`  | `/report/asset/:label`    | Full backtest detail for one asset                       |
+| `GET`  | `/report/date/:date`      | Report for a trading date (`YYYY-MM-DD`)                 |
+| `GET`  | `/reports?limit=N`        | Report history metadata                                  |
+| `POST` | `/report/trigger`         | Rebuild the daily report now                             |
+| `GET`  | `/snap`                   | Latest live snapshot                                     |
+| `GET`  | `/snap/:label`            | Live snapshot for one asset                              |
+| `GET`  | `/snaps?limit=N`          | Snapshot history                                         |
+| `POST` | `/snap/trigger`           | Trigger a fresh snapshot                                 |
+| `GET`  | `/strategies`             | Strategy registry, windows and universe                  |
+| `GET`  | `/strategies/leaderboard` | Which rule beats buy & hold, pooled across every asset   |
+| `GET`  | `/guide`                  | Field guide — assets, strategy families, metrics, method |
+| `POST` | `/sync`                   | Refresh every asset, then rebuild snapshot and report    |
+| `GET`  | `/sync`                   | Progress of the current or last sync                     |
 
 The compact report is the default because a full one carries every strategy across every
 window — right to store, wrong to send by default.
@@ -282,6 +298,57 @@ window — right to store, wrong to send by default.
 The three `POST` endpoints that start work — `/sync`, `/report/trigger`, `/snap/trigger` —
 sit behind a bearer token when `API_TOKEN` is set, and are open when it is not. Reads stay
 open either way, including `GET /sync`, which the dashboard polls anonymously.
+
+## Dashboard
+
+Five tabs, because they answer different questions:
+
+| Tab            | What it is                                                                            |
+| -------------- | ------------------------------------------------------------------------------------- |
+| **Dashboard**  | The daily report — today's orders and one verdict per asset. The thing you act on.    |
+| **Technicals** | The live multi-timeframe read for every asset, as one sortable table. Not backtested. |
+| **Strategies** | Which rule actually has an edge, pooled across the whole universe — see below.        |
+| **Options**    | Positioning by expiry for the liquid tickers. Context, never a signal.                |
+| **Guide**      | What every ticker, rule and number means.                                             |
+
+The verdicts table sorts on any column — click once for descending, again for ascending, a
+third time to return to the report's own ranking — and filters by search or instrument
+class. Columns cover market size, class, trend, momentum, how many strategies are long,
+the best-evidenced rule, a modelled return, and today's entries and exits.
+
+**Capital and the Return column.** Set a capital figure above the table and the Return
+column shows what that money would have become under each asset's best-evidenced rule
+over its headline window, next to what simply holding would have produced. It compounds
+the annualized rate over the window's actual elapsed years rather than its label, because
+"5 years" is approximate and `max` has no fixed length. It is a hypothetical built on past
+results — fees and slippage are already in the backtest, tax is not.
+
+**On "6/19 long"**: the count spans every non-benchmark strategy, while the score is
+edge-weighted — only rules that clear `MIN_VOTING_EDGE` move it. An asset can therefore
+read 6/19 long and still score 33, because thirteen of those nineteen have no demonstrated
+edge and contribute nothing. Both numbers are true and they measure different things; the
+expanded row states how many of the total it is showing and how many actually carry weight.
+
+**Size** is market cap for crypto and net assets for funds. Yahoo returns no market cap for
+an ETF, and that is correct rather than a gap — a fund creates and redeems shares on
+demand, so price × shares says nothing about how big it is.
+
+### Strategy Leaderboard
+
+The daily report answers "how did this rule do on this asset". The **Strategies** tab
+answers the question one level up: pooled across all 23 assets, which rule actually beats
+buy-and-hold, at which horizon.
+
+Every strategy gets a row; every lookback window (`1mo` through `max`) gets a column. Each
+cell is a win rate — the share of assets where the rule beat buying that asset at the start
+of the window and holding it, on both return and drawdown. A ★ marks the rule that wins a
+horizon outright, and a callout row surfaces the single best rule per horizon plus the one
+with the best pooled win rate overall. A rule only qualifies as a horizon's leader once it
+ran on at least half the universe — otherwise a strategy that only cleared warm-up on one
+or two young tickers could "win" on a sample of one.
+
+This is a reduction of numbers the daily report already computed, not a new backtest —
+`GET /strategies/leaderboard` builds it from the latest stored report.
 
 ## Manual Sync
 

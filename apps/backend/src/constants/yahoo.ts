@@ -2,6 +2,8 @@ import { BarInterval } from './enums';
 
 export const YAHOO_CHART_BASE = 'https://query2.finance.yahoo.com/v8/finance/chart';
 export const YAHOO_OPTIONS_BASE = 'https://query2.finance.yahoo.com/v7/finance/options';
+/** Batch quote endpoint — the whole universe in one request. */
+export const YAHOO_QUOTE_BASE = 'https://query1.finance.yahoo.com/v7/finance/quote';
 export const YAHOO_CRUMB_URL = 'https://query2.finance.yahoo.com/v1/test/getcrumb';
 export const YAHOO_COOKIE_URL = 'https://fc.yahoo.com/';
 

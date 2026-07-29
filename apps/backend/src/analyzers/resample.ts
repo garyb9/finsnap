@@ -47,6 +47,10 @@ function startOfUtcMonth(ms: number): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
 }
 
+function startOfUtcYear(ms: number): number {
+  return Date.UTC(new Date(ms).getUTCFullYear(), 0, 1);
+}
+
 /** Weeks start Sunday, matching the common charting convention. */
 function startOfUtcWeek(ms: number): number {
   const date = new Date(ms);
@@ -66,7 +70,8 @@ export function resampleFixed(bars: Bar[], bucketMs: number): Bar[] {
  * Resample onto calendar boundaries. Weeks and months are not a fixed number of
  * milliseconds, so a fixed grid would drift and straddle boundaries.
  */
-export function resampleCalendar(bars: Bar[], unit: 'week' | 'month'): Bar[] {
-  const boundary = unit === 'week' ? startOfUtcWeek : startOfUtcMonth;
+export function resampleCalendar(bars: Bar[], unit: 'week' | 'month' | 'year'): Bar[] {
+  const boundary =
+    unit === 'week' ? startOfUtcWeek : unit === 'month' ? startOfUtcMonth : startOfUtcYear;
   return groupBy(bars, (bar) => boundary(bar.time));
 }

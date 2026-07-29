@@ -1,14 +1,42 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { CardTitle } from './Card';
 import { ScoreBadge, VerdictBadge } from './Badges';
 import { EdgeStrip } from './EdgeStrip';
-import { ACTION_COLOR, ACTION_LABEL, changeColor, fmtPct, fmtPrice } from '../lib/format';
-import { BarInterval, MetricId, SignalAction } from '../types/enums';
+import {
+  ACTION_COLOR,
+  ACTION_LABEL,
+  changeColor,
+  compoundValue,
+  fmtMoney,
+  fmtMoneyShort,
+  fmtPct,
+  fmtPrice,
+  scoreColor,
+} from '../lib/format';
+import { BarInterval, MetricId, SignalAction, SizeKind } from '../types/enums';
+import { nextSort, sortAssets, SortDir, SortKey } from '../lib/sortAssets';
+import { GuideLinkIcon } from './icons';
+
+type SortState = { key: SortKey; dir: SortDir };
 import { assetAnchor, strategyAnchor, type Guide, type GuideAsset } from '../types/guide';
 import type { CompactAsset, CompactReport, CompactStrategy, Opportunity } from '../types/report';
+
+/**
+ * Shown on every edge badge. The score is the single most load-bearing number
+ * in the report and the least self-explanatory, so it explains itself in place
+ * rather than only on the guide page.
+ */
+/** Matches the engine's own starting capital, so the column agrees with the backtest. */
+const DEFAULT_CAPITAL = 10_000;
+
+const EDGE_HINT =
+  'Edge score (0-100): how much evidence there is that this rule beats simply holding ' +
+  'the asset. Blends excess return, risk-adjusted return and drawdown across every ' +
+  'window, then discounts inconsistency and small trade counts. 50 = matched holding; ' +
+  'above 65 is a strong record; below 45 it has been worse than holding.';
 
 /** One-line metric definitions, keyed by id, for the header stat tooltips. */
 type MetricHints = Partial<Record<MetricId, string>>;
@@ -75,19 +103,6 @@ const StatLabel = styled.span<{ $explained?: boolean }>`
   border-bottom: ${({ $explained }) =>
     $explained ? `1px dotted ${theme.colors.borderSlateTable}` : 'none'};
   cursor: ${({ $explained }) => ($explained ? 'help' : 'inherit')};
-`;
-
-const GuideLink = styled(Link)`
-  font-size: 0.66rem;
-  color: ${theme.colors.label};
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${theme.colors.accent};
-    border-bottom-color: ${theme.colors.accent};
-  }
 `;
 
 const StatValue = styled.span<{ $color?: string }>`
@@ -169,7 +184,7 @@ const IntervalTag = styled.span`
   padding: 0 4px;
   border-radius: 4px;
   color: ${theme.colors.accent};
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  border: 1px solid rgba(46, 194, 174, 0.28);
 `;
 
 const Rationale = styled.span`
@@ -199,13 +214,165 @@ const Empty = styled.div`
   text-align: center;
 `;
 
-const AssetRow = styled.div`
-  padding: 12px 22px;
+/**
+ * Search and class filters.
+ *
+ * Twenty-three rows is past the point where scanning beats filtering, and it
+ * only grows from here. Both narrow the same list the sort applies to, so the
+ * three controls compose rather than fight.
+ */
+const FilterBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 22px;
+  border-bottom: 1px solid ${theme.colors.borderSlate};
+`;
+
+const Search = styled.input`
+  font-family: inherit;
+  font-size: 0.74rem;
+  color: ${theme.colors.textSlate};
+  background: ${theme.colors.slateOverlayDark};
+  border: 1px solid ${theme.colors.borderSlate};
+  border-radius: ${theme.radius.pill};
+  padding: 6px 13px;
+  width: 190px;
+  outline: none;
+
+  &::placeholder {
+    color: ${theme.colors.label};
+  }
+
+  &:focus {
+    border-color: ${theme.colors.accent};
+  }
+`;
+
+const Chip = styled.button<{ $active: boolean }>`
+  all: unset;
+  cursor: pointer;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  padding: 5px 11px;
+  border-radius: ${theme.radius.pill};
+  border: 1px solid ${({ $active }) => ($active ? theme.colors.accent : theme.colors.borderSlate)};
+  background: ${({ $active }) => ($active ? theme.colors.accentSoft : 'transparent')};
+  color: ${({ $active }) => ($active ? theme.colors.accent : theme.colors.textMuted)};
+
+  &:hover {
+    color: ${theme.colors.accent};
+  }
+`;
+
+const CapitalWrap = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  color: ${theme.colors.label};
+`;
+
+const CapitalInput = styled.input`
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: ${theme.colors.textSlate};
+  background: ${theme.colors.slateOverlayDark};
+  border: 1px solid ${theme.colors.borderSlate};
+  border-radius: ${theme.radius.pill};
+  padding: 6px 11px;
+  width: 100px;
+  outline: none;
+
+  &:focus {
+    border-color: ${theme.colors.accent};
+  }
+`;
+
+/**
+ * What the capital would have become under the best rule, versus holding.
+ *
+ * Coloured against holding, not against zero. Every other number on this page
+ * is judged relative to buy & hold, and a rule that turned $10,000 into $18,836
+ * while holding produced $19,254 lost — painting that green because it beat
+ * zero would contradict the entire premise of the report.
+ */
+const ReturnCell = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+`;
+
+const ReturnValue = styled.span<{ $gain: boolean }>`
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: ${({ $gain }) => ($gain ? theme.colors.success : theme.colors.danger)};
+`;
+
+const ReturnVersus = styled.span`
+  font-size: 0.58rem;
+  color: ${theme.colors.label};
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+`;
+
+const ResultCount = styled.span`
+  margin-left: auto;
+  font-size: 0.66rem;
+  color: ${theme.colors.label};
+  font-variant-numeric: tabular-nums;
+`;
+
+const TableScroll = styled.div`
+  width: 100%;
+  overflow-x: auto;
+`;
+
+const TableBody = styled.div`
+  min-width: 1180px;
+`;
+
+const AssetRow = styled.div<{ $open: boolean }>`
+  padding: 12px 22px 12px 12px;
   border-bottom: 1px solid ${theme.colors.slateOverlayDark};
+  /* A left rule that lights up on hover and stays lit while open — the row is
+     a button, and nothing else about a table row says so. */
+  border-left: 2px solid ${({ $open }) => ($open ? theme.colors.accent : 'transparent')};
+  background: ${({ $open }) => ($open ? theme.colors.accentHover : 'transparent')};
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+
+  &:hover {
+    background: ${theme.colors.slateOverlay};
+    border-left-color: ${({ $open }) =>
+      $open ? theme.colors.accent : theme.colors.borderSlateMuted};
+  }
 
   &:last-child {
     border-bottom: none;
   }
+`;
+
+/**
+ * Shared by the header row and every asset row so the columns line up.
+ *
+ * The vote bar is a gauge, not a progress bar — a fixed width keeps it
+ * readable instead of stretching across the row on a wide screen.
+ */
+const COLUMNS = '14px 108px 100px 72px 88px 46px 48px 116px minmax(150px, 1fr) 100px 58px 104px';
+
+const Chevron = styled.span<{ $open: boolean }>`
+  font-size: 0.6rem;
+  line-height: 1;
+  color: ${({ $open }) => ($open ? theme.colors.accent : theme.colors.label)};
+  transform: rotate(${({ $open }) => ($open ? '90deg' : '0deg')});
+  transition: transform 0.15s ease;
 `;
 
 const AssetHead = styled.button`
@@ -213,21 +380,167 @@ const AssetHead = styled.button`
   cursor: pointer;
   width: 100%;
   display: grid;
-  /* The vote bar is a gauge, not a progress bar — a fixed width keeps it
-     readable instead of stretching across the row on a wide screen. */
-  grid-template-columns: 130px 130px 160px 1fr;
+  grid-template-columns: ${COLUMNS};
   gap: 14px;
   align-items: center;
 
-  @media (max-width: ${theme.breakpoints.md}) {
+  @media (max-width: ${theme.breakpoints.lg}) {
     grid-template-columns: 1fr auto;
     row-gap: 6px;
+  }
+`;
+
+/** Column labels. Without them the numbers are just numbers. */
+const ColumnHead = styled.div`
+  display: grid;
+  grid-template-columns: ${COLUMNS};
+  gap: 14px;
+  align-items: center;
+  padding: 7px 22px;
+  border-bottom: 1px solid ${theme.colors.borderSlate};
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${theme.colors.label};
+
+  @media (max-width: ${theme.breakpoints.lg}) {
+    display: none;
+  }
+`;
+
+const HeadButton = styled.button<{ $active: boolean; $end?: boolean }>`
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: ${({ $end }) => ($end ? 'flex-end' : 'flex-start')};
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: ${({ $active }) => ($active ? theme.colors.accent : 'inherit')};
+  white-space: nowrap;
+
+  &:hover {
+    color: ${theme.colors.accent};
+  }
+`;
+
+/** Reserves its width always, so headers do not shift when sorting changes. */
+const Caret = styled.span<{ $visible: boolean }>`
+  font-size: 0.6rem;
+  line-height: 1;
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+`;
+
+/**
+ * Cells that only earn their space on a wide screen. Below the breakpoint the
+ * row falls back to ticker plus verdict, which is the irreducible summary.
+ */
+const WideOnly = styled.div`
+  min-width: 0;
+
+  @media (max-width: ${theme.breakpoints.lg}) {
+    display: none;
   }
 `;
 
 const VerdictSlot = styled.div`
   display: flex;
   justify-content: flex-end;
+`;
+
+/**
+ * Market cap and fund AUM are not the same measure, so the tooltip says which
+ * one the number is rather than letting "size" imply they are interchangeable.
+ */
+const SIZE_HINT: Record<SizeKind, string> = {
+  [SizeKind.MarketCap]: 'Market capitalisation',
+  [SizeKind.NetAssets]: 'Assets under management — a fund has no market cap',
+};
+
+const Size = styled.span`
+  font-size: 0.76rem;
+  color: ${theme.colors.textSlateLight};
+  font-variant-numeric: tabular-nums;
+`;
+
+/** Instrument class — lets you scan sectors apart from macro at a glance. */
+const ClassTag = styled.span`
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: ${theme.colors.label};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const Trend = styled.span<{ $score: number }>`
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: ${({ $score }) => scoreColor($score)};
+`;
+
+const Agreement = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+`;
+
+const AgreementCount = styled.span`
+  font-size: 0.68rem;
+  color: ${theme.colors.textMuted};
+  font-variant-numeric: tabular-nums;
+`;
+
+/** The rule with the strongest record on this asset, not today's loudest one. */
+const BestRule = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+`;
+
+const BestRuleName = styled.span`
+  font-size: 0.74rem;
+  color: ${theme.colors.textSlateLight};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const BestRuleMeta = styled.span<{ $score: number }>`
+  font-size: 0.62rem;
+  color: ${theme.colors.label};
+  font-variant-numeric: tabular-nums;
+
+  b {
+    color: ${({ $score }) => scoreColor($score)};
+    font-weight: 700;
+  }
+`;
+
+const Flow = styled.div`
+  display: flex;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+`;
+
+const FlowIn = styled.span`
+  color: ${theme.colors.success};
+`;
+
+const FlowOut = styled.span`
+  color: ${theme.colors.danger};
+`;
+
+const FlowNone = styled.span`
+  color: ${theme.colors.label};
+  font-weight: 400;
 `;
 
 /** Ticker over plain name — 'XLB' means nothing without 'Materials' under it. */
@@ -257,7 +570,6 @@ const AssetBlurb = styled.p`
   line-height: 1.6;
   color: ${theme.colors.textMuted};
   margin: 0;
-  max-width: 82ch;
 `;
 
 const AssetCaveat = styled.p`
@@ -267,7 +579,6 @@ const AssetCaveat = styled.p`
   margin: 0;
   padding-left: 9px;
   border-left: 2px solid ${theme.colors.warning}55;
-  max-width: 82ch;
 `;
 
 const AssetPrice = styled.span<{ $pct: number }>`
@@ -300,16 +611,24 @@ const VoteTrack = styled.div<{ $pct: number }>`
   }
 `;
 
+/**
+ * Indented and rule-marked so the expanded rules read as belonging to the row
+ * above them rather than as a new top-level list.
+ */
 const AssetDetail = styled.div`
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 0 2px;
+  margin: 12px 0 4px 28px;
+  padding: 6px 0 6px 18px;
+  border-left: 1px solid ${theme.colors.borderSlate};
 `;
 
 const StrategyLine = styled.div`
   display: grid;
-  grid-template-columns: 1fr 130px auto;
+  /* Wider strip column so ten fixed-width cells fit without wrapping, and
+     centred so the squares sit on the same line as the action and edge badge. */
+  grid-template-columns: 1fr 118px auto;
   gap: 12px;
   align-items: center;
 
@@ -351,6 +670,13 @@ const ActionTag = styled.span<{ $action: SignalAction }>`
   text-transform: uppercase;
   color: ${({ $action }) => ACTION_COLOR[$action]};
   white-space: nowrap;
+`;
+
+const DetailNote = styled.div`
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: ${theme.colors.label};
 `;
 
 const Notes = styled.ul`
@@ -422,7 +748,7 @@ function StrategyEntry({ strategy }: { strategy: CompactStrategy }) {
 
       <EdgeStrip marks={strategy.marks} />
 
-      <OrderSide>
+      <OrderSide title={EDGE_HINT}>
         <ActionTag $action={strategy.action}>{ACTION_LABEL[strategy.action]}</ActionTag>
         <ScoreBadge label="edge" score={strategy.edgeScore} />
       </OrderSide>
@@ -430,28 +756,190 @@ function StrategyEntry({ strategy }: { strategy: CompactStrategy }) {
   );
 }
 
-function AssetEntry({ asset, info }: { asset: CompactAsset; info?: GuideAsset }) {
-  const [open, setOpen] = useState(false);
-  const { consensus } = asset;
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  hint,
+  align,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (next: SortState) => void;
+  hint?: string;
+  align?: 'end';
+}) {
+  const active = sort.key === sortKey;
 
   return (
-    <AssetRow>
+    <HeadButton
+      $active={active}
+      $end={align === 'end'}
+      onClick={() => onSort(nextSort(sort, sortKey))}
+      title={hint ? `${hint} — click to sort` : 'Click to sort'}
+    >
+      {label}
+      <Caret $visible={active}>{sort.dir === SortDir.Asc ? '▲' : '▼'}</Caret>
+    </HeadButton>
+  );
+}
+
+function AssetEntry({
+  asset,
+  info,
+  categoryLabel,
+  capital,
+}: {
+  asset: CompactAsset;
+  info?: GuideAsset;
+  categoryLabel?: string;
+  capital: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const { consensus } = asset;
+  // `top` is ranked by edge, so the first entry is the best-evidenced rule for
+  // this asset rather than whichever one happens to be shouting today.
+  const best = asset.top[0];
+
+  // Reports are kept for 90 days, so one built before `years` existed can still
+  // be served. Without this the return cell would throw on the missing field
+  // and take the whole dashboard down with it.
+  const horizon = best?.headline?.years;
+  const modelled =
+    best?.headline && typeof horizon === 'number' && horizon > 0
+      ? {
+          strategy: compoundValue(capital, best.headline.cagrPct, horizon),
+          holding: compoundValue(capital, best.headline.benchmarkCagrPct, horizon),
+          years: horizon,
+        }
+      : null;
+
+  return (
+    <AssetRow $open={open}>
       <AssetHead onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <Chevron $open={open} aria-hidden>
+          ▶
+        </Chevron>
+
         <AssetIdent>
           <AssetLabel>{asset.label}</AssetLabel>
           {info && <AssetName title={info.name}>{info.shortName}</AssetName>}
         </AssetIdent>
+
         <AssetPrice $pct={asset.lastChangePct}>
           ${fmtPrice(asset.lastClose)}
           <span>{fmtPct(asset.lastChangePct, 2)}</span>
         </AssetPrice>
-        <VoteTrack
-          $pct={consensus.score}
-          title={
-            `${consensus.longCount} of ${consensus.votingCount} strategies with a ` +
-            'demonstrated edge are currently long'
-          }
-        />
+
+        <WideOnly>
+          {asset.size ? (
+            <Size title={SIZE_HINT[asset.size.kind]}>{fmtMoneyShort(asset.size.value)}</Size>
+          ) : (
+            <FlowNone>—</FlowNone>
+          )}
+        </WideOnly>
+
+        <WideOnly>
+          <ClassTag title={info?.name}>{categoryLabel ?? '—'}</ClassTag>
+        </WideOnly>
+
+        <WideOnly>
+          {asset.tsmom ? (
+            <Trend $score={asset.tsmom.score} title={`Trend strength — ${asset.tsmom.label}`}>
+              {asset.tsmom.score}
+            </Trend>
+          ) : (
+            <FlowNone>—</FlowNone>
+          )}
+        </WideOnly>
+
+        <WideOnly>
+          {typeof asset.momentum === 'number' ? (
+            <Trend
+              $score={asset.momentum}
+              title="Share of timeframes with bullish EMA structure, 0-100"
+            >
+              {asset.momentum}
+            </Trend>
+          ) : (
+            <FlowNone>—</FlowNone>
+          )}
+        </WideOnly>
+
+        <WideOnly>
+          <Agreement>
+            <AgreementCount>
+              {consensus.longCount}/{consensus.votingCount} long
+            </AgreementCount>
+            <VoteTrack
+              $pct={consensus.score}
+              title={
+                `${consensus.longCount} of ${consensus.votingCount} strategies are long. ` +
+                `The bar is edge-weighted, so only the ${consensus.qualifiedCount} with a ` +
+                'demonstrated edge move it — which is why the count and the score can disagree.'
+              }
+            />
+          </Agreement>
+        </WideOnly>
+
+        <WideOnly>
+          {best ? (
+            <BestRule>
+              <BestRuleName title={best.rationale}>{best.name}</BestRuleName>
+              <BestRuleMeta $score={best.edgeScore}>
+                edge <b>{best.edgeScore}</b>
+                {best.headline && ` · ${best.headline.label} ${fmtPct(best.headline.cagrPct)}/yr`}
+              </BestRuleMeta>
+            </BestRule>
+          ) : (
+            <FlowNone>no rule with an edge</FlowNone>
+          )}
+        </WideOnly>
+
+        <WideOnly>
+          {modelled && best?.headline ? (
+            <ReturnCell
+              title={
+                `${fmtMoney(capital)} under ${best.name} over ${best.headline.label} ` +
+                `(${modelled.years.toFixed(1)}y at ${fmtPct(best.headline.cagrPct)}/yr) ` +
+                `becomes ${fmtMoney(modelled.strategy)}, versus ` +
+                `${fmtMoney(modelled.holding)} simply holding. Hypothetical: past ` +
+                `results, no costs beyond those already modelled, no tax.`
+              }
+            >
+              <ReturnValue $gain={modelled.strategy >= modelled.holding}>
+                {fmtMoney(modelled.strategy)}
+              </ReturnValue>
+              <ReturnVersus>vs {fmtMoney(modelled.holding)} held</ReturnVersus>
+            </ReturnCell>
+          ) : (
+            <FlowNone>—</FlowNone>
+          )}
+        </WideOnly>
+
+        <WideOnly>
+          <Flow>
+            {consensus.freshEntries === 0 && consensus.freshExits === 0 ? (
+              <FlowNone>—</FlowNone>
+            ) : (
+              <>
+                {consensus.freshEntries > 0 && (
+                  <FlowIn title={`${consensus.freshEntries} strategies entering`}>
+                    ↑{consensus.freshEntries}
+                  </FlowIn>
+                )}
+                {consensus.freshExits > 0 && (
+                  <FlowOut title={`${consensus.freshExits} strategies exiting`}>
+                    ↓{consensus.freshExits}
+                  </FlowOut>
+                )}
+              </>
+            )}
+          </Flow>
+        </WideOnly>
+
         <VerdictSlot>
           <VerdictBadge verdict={consensus.verdict} score={consensus.score} />
         </VerdictSlot>
@@ -463,11 +951,21 @@ function AssetEntry({ asset, info }: { asset: CompactAsset; info?: GuideAsset })
             <div>
               <AssetBlurb>
                 {info.blurb}{' '}
-                <GuideLink href={`/guide#${assetAnchor(asset.symbol)}`}>more →</GuideLink>
+                <GuideLinkIcon
+                  href={`/guide#${assetAnchor(asset.symbol)}`}
+                  label={`Read more about ${asset.label} in the field guide`}
+                />
               </AssetBlurb>
               {info.caveat && <AssetCaveat>{info.caveat}</AssetCaveat>}
             </div>
           )}
+
+          {/* Says what this list is. Without it "6/19 long" above a list of ten
+              rules reads as a contradiction rather than a truncation. */}
+          <DetailNote>
+            Top {asset.top.length} of {consensus.votingCount} rules by edge ·{' '}
+            {consensus.qualifiedCount} clear the bar to carry weight in the score
+          </DetailNote>
 
           {asset.top.map((strategy) => (
             <StrategyEntry key={strategy.id} strategy={strategy} />
@@ -504,6 +1002,39 @@ export function DailyReportCard({
   const { summary, topOpportunities } = report;
   const hints = hintsFrom(guide);
   const infoBySymbol = new Map((guide?.assets ?? []).map((a) => [a.symbol, a]));
+  // The backend already orders and names the categories; reuse that rather
+  // than restating the labels here and letting the two drift apart.
+  const categoryLabels = new Map(
+    (guide?.assetGroups ?? []).map((g) => [g.category as string, g.label])
+  );
+
+  const [sort, setSort] = useState<SortState>({ key: SortKey.Default, dir: SortDir.Desc });
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('');
+  const [capital, setCapital] = useState(DEFAULT_CAPITAL);
+
+  const categoryOf = (asset: CompactAsset) =>
+    categoryLabels.get(infoBySymbol.get(asset.symbol)?.category ?? '') ?? '';
+
+  // Filter first, then sort — ordering rows that are about to be discarded is
+  // wasted work, and the result is identical either way.
+  const visibleAssets = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    const filtered = report.assets.filter((asset) => {
+      if (category && categoryOf(asset) !== category) return false;
+      if (!needle) return true;
+
+      // Ticker, plain name and full instrument name all match, so "gold",
+      // "materials" and "XLB" each find something.
+      const info = infoBySymbol.get(asset.symbol);
+      return [asset.label, asset.symbol, info?.shortName, info?.name]
+        .filter((field): field is string => Boolean(field))
+        .some((field) => field.toLowerCase().includes(needle));
+    });
+
+    return sortAssets(filtered, sort.key, sort.dir, categoryOf);
+  }, [report.assets, sort, guide, query, category]);
 
   return (
     <Wrap>
@@ -543,14 +1074,14 @@ export function DailyReportCard({
           </Stat>
         </Summary>
 
-        <GuideLink href="/guide">Field guide →</GuideLink>
+        <GuideLinkIcon href="/guide" label="Open the field guide" variant="book" />
       </Header>
 
       <SectionLabel>
         <span>
           Today&rsquo;s orders {topOpportunities.length > 0 && `· ${topOpportunities.length}`}
         </span>
-        <GuideLink href="/guide#metrics">what the numbers mean</GuideLink>
+        <GuideLinkIcon href="/guide#metrics" label="What these numbers mean" />
       </SectionLabel>
 
       {topOpportunities.length === 0 ? (
@@ -563,12 +1094,136 @@ export function DailyReportCard({
 
       <SectionLabel>
         <span>Verdicts · tap an asset for its strategies</span>
-        <GuideLink href="/guide#assets">what these tickers are</GuideLink>
+        <GuideLinkIcon href="/guide#assets" label="What these tickers are" />
       </SectionLabel>
 
-      {report.assets.map((asset) => (
-        <AssetEntry key={asset.symbol} asset={asset} info={infoBySymbol.get(asset.symbol)} />
-      ))}
+      <FilterBar>
+        <Search
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search ticker or name…"
+          aria-label="Search assets"
+        />
+        <Chip $active={category === ''} onClick={() => setCategory('')}>
+          All
+        </Chip>
+        {(guide?.assetGroups ?? []).map((group) => (
+          <Chip
+            key={group.category}
+            $active={category === group.label}
+            onClick={() => setCategory(category === group.label ? '' : group.label)}
+          >
+            {group.label}
+          </Chip>
+        ))}
+        <CapitalWrap>
+          Capital
+          <CapitalInput
+            type="number"
+            min={0}
+            step={1000}
+            value={capital}
+            onChange={(e) => setCapital(Math.max(0, Number(e.target.value) || 0))}
+            aria-label="Capital to model the return on"
+          />
+        </CapitalWrap>
+
+        <ResultCount>
+          {visibleAssets.length} of {report.assets.length}
+        </ResultCount>
+      </FilterBar>
+
+      <TableScroll>
+        <TableBody>
+          <ColumnHead>
+            <span />
+            <SortHeader label="Asset" sortKey={SortKey.Label} sort={sort} onSort={setSort} />
+            <SortHeader
+              label="Last"
+              sortKey={SortKey.Change}
+              sort={sort}
+              onSort={setSort}
+              hint="Close of the last completed session, and its move"
+            />
+            <SortHeader
+              label="Size"
+              sortKey={SortKey.Size}
+              sort={sort}
+              onSort={setSort}
+              hint="Market cap for crypto; assets under management for funds"
+            />
+            <SortHeader
+              label="Class"
+              sortKey={SortKey.Category}
+              sort={sort}
+              onSort={setSort}
+              hint="What the instrument gives you exposure to"
+            />
+            <SortHeader
+              label="Trend"
+              sortKey={SortKey.Trend}
+              sort={sort}
+              onSort={setSort}
+              hint="Live trend-strength score across timeframes"
+            />
+            <SortHeader
+              label="Mom"
+              sortKey={SortKey.Momentum}
+              sort={sort}
+              onSort={setSort}
+              hint="Share of timeframes with bullish EMA structure, 0-100"
+            />
+            <SortHeader
+              label="Agreement"
+              sortKey={SortKey.Agreement}
+              sort={sort}
+              onSort={setSort}
+              hint="How many strategies are long, and the edge-weighted score"
+            />
+            <SortHeader
+              label="Best rule"
+              sortKey={SortKey.Edge}
+              sort={sort}
+              onSort={setSort}
+              hint="The rule with the strongest historical record on this asset"
+            />
+            <SortHeader
+              label="Return"
+              sortKey={SortKey.Return}
+              sort={sort}
+              onSort={setSort}
+              hint="What your capital would have become under the best rule over its headline window"
+            />
+            <SortHeader
+              label="Today"
+              sortKey={SortKey.Flow}
+              sort={sort}
+              onSort={setSort}
+              hint="Strategies entering or exiting at the next open"
+            />
+            <SortHeader
+              label="Verdict"
+              sortKey={SortKey.Verdict}
+              sort={sort}
+              onSort={setSort}
+              align="end"
+            />
+          </ColumnHead>
+
+          {visibleAssets.length === 0 && <Empty>No asset matches that search.</Empty>}
+
+          {visibleAssets.map((asset) => (
+            <AssetEntry
+              key={asset.symbol}
+              asset={asset}
+              capital={capital}
+              info={infoBySymbol.get(asset.symbol)}
+              categoryLabel={categoryLabels.get(infoBySymbol.get(asset.symbol)?.category ?? '')}
+            />
+          ))}
+        </TableBody>
+      </TableScroll>
     </Wrap>
   );
 }

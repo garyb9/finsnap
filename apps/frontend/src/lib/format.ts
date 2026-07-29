@@ -1,5 +1,5 @@
 import { theme } from '../styles/theme';
-import { SignalAction, Verdict } from '../types/enums';
+import { SignalAction, StrategyKind, Verdict } from '../types/enums';
 
 export function fmtNum(n: number, decimals = 1): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: decimals });
@@ -15,6 +15,26 @@ export function fmtK(n: number): string {
 export function fmtPrice(n: number): string {
   if (!Number.isFinite(n)) return '—';
   return n >= 1000 ? n.toLocaleString('en-US', { maximumFractionDigits: 0 }) : n.toFixed(2);
+}
+
+/** $1.29T / $781B / $8.2B / $436M — abbreviated, because the digits are noise. */
+export function fmtMoneyShort(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  const units: [number, string][] = [
+    [1e12, 'T'],
+    [1e9, 'B'],
+    [1e6, 'M'],
+    [1e3, 'K'],
+  ];
+  for (const [scale, suffix] of units) {
+    if (n >= scale) {
+      const scaled = n / scale;
+      // Two significant figures below 10, one above: $1.3T and $781B both read
+      // cleanly, while $781.4B is more precision than the number deserves.
+      return `$${scaled < 10 ? scaled.toFixed(1) : Math.round(scaled)}${suffix}`;
+    }
+  }
+  return `$${Math.round(n)}`;
 }
 
 export function fmtPct(n: number, digits = 1): string {
@@ -38,6 +58,34 @@ export function changeColor(pct: number): string {
   if (pct > 0) return theme.colors.success;
   if (pct < 0) return theme.colors.danger;
   return theme.colors.textMuted;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
+function lerpColor(hexA: string, hexB: string, t: number): string {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  return `#${a.map((v, i) => lerp(v, b[i], t).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Diverging around 50% — the coin-flip line for "beat buy & hold". A flat
+ * three-bucket status scale (the one `scoreColor` uses) reads as a wall of red
+ * once most values sit under 40, because 3% and 38% render identically. This
+ * interpolates continuously so nearby win rates are visibly different shades:
+ * warm toward red below 50, a muted neutral at 50, cool toward green above it.
+ */
+export function winRateColor(pct: number): string {
+  const clamped = Math.max(0, Math.min(100, pct));
+  if (clamped <= 50) return lerpColor(theme.colors.danger, theme.colors.label, clamped / 50);
+  return lerpColor(theme.colors.label, theme.colors.success, (clamped - 50) / 50);
 }
 
 // --- Daily report labels ---
@@ -65,6 +113,14 @@ export const ACTION_LABEL: Record<SignalAction, string> = {
   [SignalAction.StayOut]: 'Cash',
 };
 
+export const STRATEGY_KIND_LABEL: Record<StrategyKind, string> = {
+  [StrategyKind.Benchmark]: 'Benchmark',
+  [StrategyKind.Trend]: 'Trend',
+  [StrategyKind.Momentum]: 'Momentum',
+  [StrategyKind.Breakout]: 'Breakout',
+  [StrategyKind.MeanReversion]: 'Mean Reversion',
+};
+
 export const ACTION_COLOR: Record<SignalAction, string> = {
   [SignalAction.Enter]: theme.colors.success,
   [SignalAction.Hold]: theme.colors.accent,
@@ -78,4 +134,22 @@ export function relativeTime(iso: string): string {
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;
   return `${Math.floor(diffMin / 60)}h ago`;
+}
+
+/**
+ * What `capital` becomes after `years` at `cagrPct` a year.
+ *
+ * Deliberately compounding rather than applying the total return: the report
+ * stores an annualized rate, and multiplying it by the number of years would
+ * understate every multi-year result.
+ */
+export function compoundValue(capital: number, cagrPct: number, years: number): number {
+  if (!Number.isFinite(cagrPct) || !Number.isFinite(years) || years <= 0) return capital;
+  return capital * Math.pow(1 + cagrPct / 100, years);
+}
+
+/** $12,450 — whole dollars, because cents on a hypothetical are noise. */
+export function fmtMoney(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  return `$${Math.round(n).toLocaleString('en-US')}`;
 }

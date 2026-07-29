@@ -38,6 +38,12 @@ export const TSMOM_TIMEFRAME_WEIGHTS = {
   D: 2,
   W: 2.5,
   M: 3,
+  /**
+   * Present so the map stays total over `Timeframe`. Yearly is not in the
+   * TSMOM evaluation set — a handful of candles cannot support the EMA and
+   * Bollinger components — so this weight is never actually applied.
+   */
+  Y: 3.5,
 } as const;
 
 export const TSMOM_COMPONENT_WEIGHTS = {

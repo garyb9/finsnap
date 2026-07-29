@@ -41,17 +41,29 @@ export function computeConsensus(strategies: StrategyReport[]): Consensus {
   let longWeight = 0;
   let flatWeight = 0;
   let longCount = 0;
+  let qualifiedCount = 0;
+  let qualifiedLongCount = 0;
   let freshEntries = 0;
   let freshExits = 0;
 
   for (const s of voters) {
     const weight = voteWeight(s.edgeScore);
-    if (s.signal.target > 0) {
+    const isLong = s.signal.target > 0;
+
+    if (isLong) {
       longWeight += weight;
       longCount++;
     } else {
       flatWeight += weight;
     }
+
+    // Tracked separately from the head count so the score and the count can be
+    // reconciled: only these strategies moved the score at all.
+    if (weight > 0) {
+      qualifiedCount++;
+      if (isLong) qualifiedLongCount++;
+    }
+
     if (s.signal.action === SignalAction.Enter) freshEntries++;
     if (s.signal.action === SignalAction.Exit) freshExits++;
   }
@@ -72,6 +84,8 @@ export function computeConsensus(strategies: StrategyReport[]): Consensus {
     flatWeight: Number(flatWeight.toFixed(3)),
     longCount,
     votingCount: voters.length,
+    qualifiedCount,
+    qualifiedLongCount,
     freshEntries,
     freshExits,
   };

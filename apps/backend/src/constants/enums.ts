@@ -50,6 +50,8 @@ export enum Timeframe {
   D = 'D',
   W = 'W',
   M = 'M',
+  /** Yearly candles from daily bars — the longest horizon the data supports */
+  Y = 'Y',
 }
 
 /** What kind of edge a strategy is trying to capture. */
@@ -109,6 +111,22 @@ export enum TelegramMode {
   Polling = 'polling',
   Webhook = 'webhook',
   Off = 'off',
+}
+
+/**
+ * Which measure of "how big is this thing" a figure represents.
+ *
+ * They are not interchangeable, which is why the distinction is carried rather
+ * than flattened. A fund's shares are created and redeemed on demand, so its
+ * share count says nothing about its size — what matters is the value of the
+ * assets it holds. Only for a company or a coin is market capitalisation the
+ * meaningful number.
+ */
+export enum SizeKind {
+  /** Price × shares in issue — companies and cryptocurrencies */
+  MarketCap = 'marketCap',
+  /** Assets under management — funds and ETFs */
+  NetAssets = 'netAssets',
 }
 
 /** Numbers the report puts on screen, each with a glossary entry. */

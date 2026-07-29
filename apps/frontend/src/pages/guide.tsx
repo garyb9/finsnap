@@ -25,20 +25,20 @@ const SECTIONS = [
 
 // ---------- Styled ----------
 
+/**
+ * Narrower than the dashboard on purpose.
+ *
+ * Uncapping the paragraphs let them run to ~110 characters a line, which is
+ * roughly twice a comfortable measure — the eye loses its place returning to
+ * the next line. Constraining the column instead of the paragraphs keeps every
+ * element aligned to one edge while still reading well.
+ */
 const Column = styled.div`
   width: 100%;
-  max-width: 900px;
+  max-width: 760px;
   display: flex;
   flex-direction: column;
-  gap: 34px;
-`;
-
-const TopBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 40px;
 `;
 
 const Back = styled(Link)`
@@ -65,7 +65,6 @@ const Lede = styled.p`
   line-height: 1.65;
   color: ${theme.colors.textMuted};
   margin: 0;
-  max-width: 70ch;
 `;
 
 const Nav = styled.nav`
@@ -73,10 +72,11 @@ const Nav = styled.nav`
   gap: 6px;
   flex-wrap: wrap;
   position: sticky;
-  top: 0;
+  /* Clears the site header, which is also sticky at the top of the viewport. */
+  top: ${theme.headerHeight};
   z-index: 10;
   padding: 10px 0;
-  background: linear-gradient(${theme.colors.backgroundGradientMid} 65%, rgba(2, 6, 23, 0) 100%);
+  background: linear-gradient(${theme.colors.backgroundGradientMid} 65%, rgba(2, 18, 15, 0) 100%);
 `;
 
 const NavLink = styled.a`
@@ -99,7 +99,7 @@ const Section = styled.section`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  scroll-margin-top: 60px;
+  scroll-margin-top: calc(${theme.headerHeight} + 56px);
 `;
 
 const SectionTitle = styled.h2`
@@ -113,28 +113,115 @@ const SectionTitle = styled.h2`
 `;
 
 const GroupTitle = styled.h3`
-  font-size: 0.82rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: ${theme.colors.accent};
+  margin: 26px 0 2px;
+`;
+
+/**
+ * Method notes as a numbered list rather than six identical boxes.
+ *
+ * Stacked cards of near-equal size read as a wall — nothing signals where one
+ * idea ends and the next begins except a border. A number and a rule do that
+ * job with far less ink.
+ */
+const Steps = styled.ol`
+  list-style: none;
+  counter-reset: step;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+`;
+
+const Step = styled.li`
+  counter-increment: step;
+  position: relative;
+  padding-left: 38px;
+
+  &::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 1px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: ${theme.colors.accent};
+  }
+`;
+
+const StepTitle = styled.h3`
+  font-size: 0.92rem;
   font-weight: 700;
   color: ${theme.colors.textSlate};
-  margin: 10px 0 0;
+  margin: 0 0 6px;
+`;
+
+const GroupTabs = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const GroupTab = styled.button<{ $active: boolean }>`
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  letter-spacing: 0.04em;
+  padding: 6px 13px;
+  border-radius: ${theme.radius.pill};
+  border: 1px solid ${({ $active }) => ($active ? theme.colors.accent : theme.colors.borderSlate)};
+  background: ${({ $active }) => ($active ? theme.colors.accentSoft : 'transparent')};
+  color: ${({ $active }) => ($active ? theme.colors.accent : theme.colors.textMuted)};
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    color: ${theme.colors.accent};
+    border-color: ${theme.colors.accent};
+  }
+`;
+
+const TabCount = styled.span`
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+`;
+
+const GroupPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 4px;
 `;
 
 const Entry = styled.article`
   border-radius: ${theme.radius.md};
-  border: 1px solid ${theme.colors.borderSlate};
-  background: ${theme.colors.slateOverlay};
-  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-left: 2px solid ${theme.colors.borderSlate};
+  background: transparent;
+  padding: 2px 0 2px 14px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  scroll-margin-top: 66px;
+  gap: 6px;
+  scroll-margin-top: calc(${theme.headerHeight} + 60px);
 
   /* A deep link should make it obvious which entry you landed on — at this
      contrast a border tint alone is invisible, so the ring does the work. */
   &:target {
-    border-color: ${theme.colors.accent};
+    border-left-color: ${theme.colors.accent};
     background: ${theme.colors.accentSoft};
-    box-shadow: 0 0 0 1px ${theme.colors.accent};
+    padding: 10px 12px 10px 14px;
   }
 `;
 
@@ -161,17 +248,16 @@ const Tag = styled.span`
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: ${theme.colors.accent};
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  border: 1px solid rgba(46, 194, 174, 0.32);
   border-radius: 4px;
   padding: 1px 5px;
 `;
 
 const Body = styled.p`
-  font-size: 0.82rem;
-  line-height: 1.65;
+  font-size: 0.88rem;
+  line-height: 1.75;
   color: ${theme.colors.textSlateLight};
   margin: 0;
-  max-width: 78ch;
 `;
 
 const Caveat = styled.p`
@@ -181,7 +267,6 @@ const Caveat = styled.p`
   margin: 0;
   padding-left: 10px;
   border-left: 2px solid ${theme.colors.warning}55;
-  max-width: 78ch;
 `;
 
 const Aside = styled.p<{ $tone: 'good' | 'bad' }>`
@@ -189,7 +274,6 @@ const Aside = styled.p<{ $tone: 'good' | 'bad' }>`
   line-height: 1.6;
   margin: 0;
   color: ${theme.colors.textMuted};
-  max-width: 78ch;
 
   strong {
     color: ${({ $tone }) => ($tone === 'good' ? theme.colors.success : theme.colors.danger)};
@@ -197,14 +281,54 @@ const Aside = styled.p<{ $tone: 'good' | 'bad' }>`
   }
 `;
 
-const Reading = styled.p`
+/**
+ * A metric is three different things — a name, a one-liner and a caveat — and
+ * setting them all as body paragraphs made them impossible to skim. Each now
+ * gets its own weight so the eye can stop at whichever depth it needs.
+ */
+const Metric = styled.article`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 0;
+  border-top: 1px solid ${theme.colors.borderSlate};
+  scroll-margin-top: calc(${theme.headerHeight} + 60px);
+
+  &:target {
+    border-top-color: ${theme.colors.accent};
+  }
+`;
+
+const MetricName = styled.h3`
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: ${theme.colors.textSlate};
+  margin: 0;
+`;
+
+const MetricShort = styled.p`
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: ${theme.colors.accent};
+`;
+
+const ReadingLabel = styled.span`
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: ${theme.colors.label};
+  margin-bottom: 3px;
+`;
+
+const Reading = styled.div`
   font-size: 0.78rem;
   line-height: 1.6;
   margin: 0;
   color: ${theme.colors.textMuted};
   padding-left: 10px;
   border-left: 2px solid ${theme.colors.borderSlateMuted};
-  max-width: 78ch;
 `;
 
 const FamilyCard = styled.div`
@@ -303,6 +427,8 @@ function FamilySection({
 export default function GuidePage() {
   const [guide, setGuide] = useState<Guide | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openGroup, setOpenGroup] = useState<string>('');
+  const [openFamily, setOpenFamily] = useState<StrategyKind | ''>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -324,12 +450,31 @@ export default function GuidePage() {
   // Re-run the jump once the content is on the page.
   useEffect(() => {
     if (!guide) return;
+    // Opens on the first real family, not Benchmark: buy & hold is the yardstick
+    // every other rule is measured against, so leading with it would open the
+    // section on the one entry that is not a strategy.
+    const firstReal = guide.families.find((f) => f.kind !== StrategyKind.Benchmark);
+    setOpenFamily((current) => current || firstReal?.kind || guide.families[0]?.kind || '');
+
+    const id = window.location.hash.slice(1);
+    const symbol = id.startsWith('asset-') ? id.slice('asset-'.length) : null;
+    // A deep link to a ticker has to open the tab holding it, or the anchor
+    // scrolls to an element that is not rendered.
+    const owning = symbol
+      ? guide.assetGroups.find((g) => g.symbols.includes(symbol))?.category
+      : null;
+
+    setOpenGroup(owning ?? guide.assetGroups[0]?.category ?? '');
+  }, [guide]);
+
+  // Runs after the tab above has rendered, so the target exists to scroll to.
+  useEffect(() => {
+    if (!guide || !openGroup) return;
     const id = window.location.hash.slice(1);
     if (!id) return;
 
-    const target = document.getElementById(id);
-    target?.scrollIntoView({ block: 'start' });
-  }, [guide]);
+    document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  }, [guide, openGroup]);
 
   if (loading) {
     return (
@@ -351,17 +496,12 @@ export default function GuidePage() {
   }
 
   const bySymbol = new Map(guide.assets.map((a) => [a.symbol, a]));
-  // Buy & hold is listed on its own at the end: it is the yardstick, and
-  // grouping it with the rules it measures would suggest it is one of them.
-  const benchmarks = guide.strategies.filter((s) => s.kind === StrategyKind.Benchmark);
+  const strategiesOf = (kind: StrategyKind) => guide.strategies.filter((s) => s.kind === kind);
+  const openFamilyDef = guide.families.find((f) => f.kind === openFamily);
 
   return (
     <Page>
       <Column>
-        <TopBar>
-          <Back href="/">← Dashboard</Back>
-        </TopBar>
-
         <div>
           <Title>Field Guide</Title>
           <Lede>
@@ -383,12 +523,14 @@ export default function GuidePage() {
 
         <Section id="method">
           <SectionTitle>How the backtest works</SectionTitle>
-          {guide.method.map((note) => (
-            <Entry key={note.title}>
-              <EntryName>{note.title}</EntryName>
-              <Body>{note.body}</Body>
-            </Entry>
-          ))}
+          <Steps>
+            {guide.method.map((note) => (
+              <Step key={note.title}>
+                <StepTitle>{note.title}</StepTitle>
+                <Body>{note.body}</Body>
+              </Step>
+            ))}
+          </Steps>
           <Footnote>
             Every run starts with ${guide.execution.initialCapital.toLocaleString()}, pays{' '}
             {guide.execution.feeBps} basis points in fees per fill and gives up{' '}
@@ -406,19 +548,32 @@ export default function GuidePage() {
             long bonds. Watching them together is what makes a breadth reading mean something.
           </Body>
 
-          {guide.assetGroups.map((group) => (
-            <div key={group.category}>
-              <GroupTitle>{group.label}</GroupTitle>
-              {group.symbols.map((symbol) => {
+          {/* One category open at a time. Twenty-three descriptions stacked
+              flat is a wall of prose nobody reads; picking a class first makes
+              the section answer a question instead of reciting a list. */}
+          <GroupTabs role="tablist">
+            {guide.assetGroups.map((group) => (
+              <GroupTab
+                key={group.category}
+                role="tab"
+                aria-selected={openGroup === group.category}
+                $active={openGroup === group.category}
+                onClick={() => setOpenGroup(group.category)}
+              >
+                {group.label}
+                <TabCount>{group.symbols.length}</TabCount>
+              </GroupTab>
+            ))}
+          </GroupTabs>
+
+          <GroupPanel role="tabpanel">
+            {(guide.assetGroups.find((g) => g.category === openGroup)?.symbols ?? []).map(
+              (symbol) => {
                 const asset = bySymbol.get(symbol);
-                return asset ? (
-                  <div key={symbol} style={{ marginTop: 10 }}>
-                    <AssetEntry asset={asset} />
-                  </div>
-                ) : null;
-              })}
-            </div>
-          ))}
+                return asset ? <AssetEntry key={symbol} asset={asset} /> : null;
+              }
+            )}
+          </GroupPanel>
         </Section>
 
         <Section id="strategies">
@@ -430,39 +585,42 @@ export default function GuidePage() {
             history.
           </Body>
 
-          {guide.families.map((family) => (
-            <FamilySection
-              key={family.kind}
-              family={family}
-              strategies={guide.strategies.filter(
-                (s) => s.kind === family.kind && s.kind !== StrategyKind.Benchmark
-              )}
-            />
-          ))}
+          {/* Same tab pattern as the assets: pick a family, then read it.
+              Five families of rules stacked flat is the same wall of prose. */}
+          <GroupTabs role="tablist">
+            {guide.families.map((family) => (
+              <GroupTab
+                key={family.kind}
+                role="tab"
+                aria-selected={openFamily === family.kind}
+                $active={openFamily === family.kind}
+                onClick={() => setOpenFamily(family.kind)}
+              >
+                {family.label}
+                <TabCount>{strategiesOf(family.kind).length}</TabCount>
+              </GroupTab>
+            ))}
+          </GroupTabs>
 
-          {benchmarks.length > 0 && (
-            <div>
-              <GroupTitle>Benchmark</GroupTitle>
-              {benchmarks.map((s) => (
-                <div key={s.id} style={{ marginTop: 10 }}>
-                  <StrategyEntry strategy={s} />
-                </div>
-              ))}
-            </div>
-          )}
+          <GroupPanel role="tabpanel">
+            {openFamilyDef && (
+              <FamilySection family={openFamilyDef} strategies={strategiesOf(openFamilyDef.kind)} />
+            )}
+          </GroupPanel>
         </Section>
 
         <Section id="metrics">
           <SectionTitle>Metrics</SectionTitle>
           {guide.metrics.map((metric) => (
-            <Entry key={metric.id} id={metricAnchor(metric.id)}>
-              <EntryHead>
-                <EntryName>{metric.label}</EntryName>
-                <EntrySub>{metric.short}</EntrySub>
-              </EntryHead>
+            <Metric key={metric.id} id={metricAnchor(metric.id)}>
+              <MetricName>{metric.label}</MetricName>
+              <MetricShort>{metric.short}</MetricShort>
               <Body>{metric.detail}</Body>
-              <Reading>{metric.reading}</Reading>
-            </Entry>
+              <Reading>
+                <ReadingLabel>How to read it</ReadingLabel>
+                {metric.reading}
+              </Reading>
+            </Metric>
           ))}
         </Section>
 

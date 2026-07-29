@@ -4,6 +4,7 @@ import { createLogger } from '../logger';
 import type { AssetSpec, Config } from '../config';
 import { BarCollector } from '../collectors/bars';
 import { fetchOptionsData } from '../collectors/options';
+import { fetchAssetSizes, type AssetSize } from '../collectors/quote';
 import { analyzeOptionsChain } from '../analyzers/options';
 import { analyzeAssetBars } from '../analyzers/price';
 import { analyzeTsmom } from '../analyzers/tsmom';
@@ -53,9 +54,16 @@ export class ReportBuilder {
     let backtestsRun = 0;
     let strategiesRun = 0;
 
+    // One batched request for the whole universe. Failure yields an empty map
+    // and the report is built without size, which is decoration.
+    const sizes = await fetchAssetSizes(
+      this.config.universe.map((s) => s.symbol),
+      this.redis
+    );
+
     for (const spec of this.config.universe) {
       try {
-        const asset = await this.buildAsset(spec, execution);
+        const asset = await this.buildAsset(spec, execution, sizes.get(spec.symbol.toUpperCase()));
         if (!asset) continue;
         assets.push(asset);
         strategiesRun += asset.daily.length + asset.intraday.length;
@@ -105,7 +113,8 @@ export class ReportBuilder {
 
   private async buildAsset(
     spec: AssetSpec,
-    execution: ExecutionOptions
+    execution: ExecutionOptions,
+    size?: AssetSize
   ): Promise<AssetOpportunity | null> {
     const symbolBars = await this.bars.fetchSymbol(spec.symbol);
 
@@ -144,6 +153,7 @@ export class ReportBuilder {
       assetClass: spec.assetClass,
       lastClose: dailyResult.lastClose,
       lastChangePct: dailyResult.lastChangePct,
+      size,
       lastBarTime: dailyResult.lastBarTime,
       historyStart: dailyResult.historyStart,
       barsAnalyzed: dailyResult.barsAnalyzed,

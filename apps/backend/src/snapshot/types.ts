@@ -1,3 +1,4 @@
+import type { AssetSize } from '../collectors/quote';
 import type { OptionsExpirationAnalysis, TimeframeAnalysis, TsmomSignal } from '../analyzers/types';
 import type { AssetClass } from '../config';
 
@@ -11,6 +12,8 @@ export interface AssetSnap {
   currentPrice: number;
   /** Change across the most recent completed daily bar */
   changePct: number;
+  /** Market cap for crypto, net assets for funds. Absent when unavailable. */
+  size?: AssetSize;
   timeframes: TimeframeAnalysis[];
   tsmom: { score: number; label: string };
   /** 0-100 bullish-structure share across timeframes */

@@ -3,10 +3,20 @@ import type {
   AssetClass,
   BarInterval,
   SignalAction,
+  SizeKind,
   StrategyKind,
   Verdict,
   WindowId,
 } from './enums';
+
+/**
+ * How big an instrument is. `kind` matters: an ETF has no meaningful market
+ * cap, so funds report assets under management instead.
+ */
+export type AssetSize = {
+  value: number;
+  kind: SizeKind;
+};
 
 export type Consensus = {
   score: number;
@@ -14,7 +24,11 @@ export type Consensus = {
   longWeight: number;
   flatWeight: number;
   longCount: number;
+  /** Every non-benchmark strategy — the denominator of `longCount` */
   votingCount: number;
+  /** Strategies whose edge clears the bar to carry weight in the score */
+  qualifiedCount: number;
+  qualifiedLongCount: number;
   freshEntries: number;
   freshExits: number;
 };
@@ -23,6 +37,8 @@ export type Consensus = {
 export type CompactWindow = {
   window: WindowId;
   label: string;
+  /** Wall-clock years the window covered — the label is only approximate */
+  years: number;
   cagrPct: number;
   benchmarkCagrPct: number;
   maxDrawdownPct: number;
@@ -65,6 +81,8 @@ export type CompactAsset = {
   assetClass: AssetClass;
   lastClose: number;
   lastChangePct: number;
+  /** Market cap for crypto, net assets for funds. Absent when unavailable. */
+  size?: AssetSize;
   consensus: Consensus;
   tsmom?: { score: number; label: string };
   momentum?: number;

@@ -21,14 +21,12 @@ const STAGE_COLOR: Record<SyncStage, string> = {
   [SyncStage.Failed]: theme.colors.danger,
 };
 
-/**
- * How long a finished panel lingers before folding itself away.
- *
- * The panel floats over the report, so leaving it up indefinitely would hide
- * the thing the sync was run to refresh. Long enough to read the summary, short
- * enough to get out of the way on its own.
- */
-const AUTO_DISMISS_MS = 6000;
+const PHASE_HINT: Record<SyncPhase, string> = {
+  [SyncPhase.Fetching]: 'Pulling bars and option chains',
+  [SyncPhase.Snapshot]: 'Recomputing the live view',
+  [SyncPhase.Report]: 'Re-running every backtest',
+  [SyncPhase.Done]: 'Refresh every asset, then rebuild the snapshot and the daily report.',
+};
 
 /** Latency bands, so a slow symbol is visible without reading the number. */
 function latencyColor(ms: number): string {
@@ -39,24 +37,45 @@ function latencyColor(ms: number): string {
 
 // ---------- Styled ----------
 
+/**
+ * Docked into the header row rather than floating above it.
+ *
+ * The control belongs visually to the header, so its button is centred on the
+ * same baseline as the wordmark and tabs: half the header height, less half the
+ * button's own height.
+ */
+const TOGGLE_HEIGHT = 30;
+
 const Dock = styled.div`
   position: fixed;
-  top: 16px;
-  right: 16px;
+  top: calc((${theme.headerHeight} - ${TOGGLE_HEIGHT}px) / 2);
+  /*
+   * Aligned to the header's centred container, not to the viewport edge.
+   * The header is capped at ${theme.maxWidth.dashboard} and centred, so pinning
+   * this to the window left a growing gap between the live-status readout and
+   * this button on any screen wider than that cap.
+   */
+  right: max(22px, calc((100vw - ${theme.maxWidth.dashboard}) / 2 + 22px));
   z-index: 40;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
+  gap: 10px;
   max-width: min(360px, calc(100vw - 32px));
 
   @media (max-width: ${theme.breakpoints.md}) {
-    top: 8px;
-    right: 8px;
+    right: 10px;
   }
 `;
 
-const Button = styled.button<{ $busy: boolean }>`
+/**
+ * The docked control. Opens the panel — it does not start a sync.
+ *
+ * Firing a multi-minute job straight off the toolbar button was too easy to do
+ * by accident; the trigger now lives inside the panel where it can be labelled
+ * with what it actually does.
+ */
+const Toggle = styled.button<{ $busy: boolean; $open: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -65,30 +84,94 @@ const Button = styled.button<{ $busy: boolean }>`
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: ${({ $busy }) => ($busy ? theme.colors.accent : theme.colors.textSlate)};
+  color: ${({ $busy, $open }) => ($busy || $open ? theme.colors.accent : theme.colors.textSlate)};
   background: ${theme.colors.slateOverlayMuted};
-  border: 1px solid ${({ $busy }) => ($busy ? theme.colors.accent : theme.colors.borderSlateMuted)};
+  border: 1px solid
+    ${({ $busy, $open }) => ($busy || $open ? theme.colors.accent : theme.colors.borderSlateMuted)};
   border-radius: ${theme.radius.pill};
-  padding: 7px 14px;
-  cursor: ${({ $busy }) => ($busy ? 'default' : 'pointer')};
+  height: ${TOGGLE_HEIGHT}px;
+  padding: 0 14px;
+  cursor: pointer;
   backdrop-filter: blur(6px);
   transition:
     border-color 0.15s ease,
     color 0.15s ease;
 
-  &:hover:not(:disabled) {
+  &:hover {
     border-color: ${theme.colors.accent};
     color: ${theme.colors.accent};
   }
 `;
 
-const Spinner = styled.span`
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid ${theme.colors.accentSoft};
-  border-top-color: ${theme.colors.accent};
-  animation: ${spin} 0.7s linear infinite;
+/**
+ * Rotating arrows while a sync runs, static otherwise.
+ *
+ * A spinning ring reads as "the page is loading"; a rotating refresh glyph
+ * reads as "the thing you asked for is happening", which is the distinction
+ * that matters when the job takes minutes.
+ */
+const RefreshIcon = styled.svg<{ $busy: boolean }>`
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: ${({ $busy }) => ($busy ? theme.colors.accent : 'currentColor')};
+  animation: ${({ $busy }) =>
+    $busy
+      ? css`
+          ${spin} 1.1s linear infinite
+        `
+      : 'none'};
+`;
+
+function Refresh({ busy }: { busy: boolean }) {
+  return (
+    <RefreshIcon $busy={busy} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M20 11A8 8 0 1 0 18.6 16M20 5v6h-6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </RefreshIcon>
+  );
+}
+
+/** The explicit trigger, inside the panel. */
+const RunButton = styled.button<{ $busy: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: ${({ $busy }) => ($busy ? theme.colors.label : theme.colors.background)};
+  background: ${({ $busy }) => ($busy ? theme.colors.slateOverlayDark : theme.colors.accent)};
+  border: 1px solid ${({ $busy }) => ($busy ? theme.colors.borderSlate : theme.colors.accent)};
+  border-radius: ${theme.radius.sm};
+  padding: 8px 12px;
+  cursor: ${({ $busy }) => ($busy ? 'default' : 'pointer')};
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+`;
+
+const CloseButton = styled.button`
+  all: unset;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 1rem;
+  padding: 0 2px;
+  color: ${theme.colors.label};
+
+  &:hover {
+    color: ${theme.colors.textSlate};
+  }
 `;
 
 const Dot = styled.span<{ $color: string }>`
@@ -112,10 +195,22 @@ const Panel = styled.div`
 
 const PanelHead = styled.div`
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px 8px;
+  padding: 9px 10px 8px 12px;
+`;
+
+const Hint = styled.p`
+  margin: 0;
+  padding: 10px 12px 0;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: ${theme.colors.label};
+`;
+
+const Actions = styled.div`
+  padding: 10px 12px;
 `;
 
 const Phase = styled.span`
@@ -266,82 +361,95 @@ function StepEntry({ step, active }: { step: SyncStep; active: boolean }) {
 /**
  * Manual refresh, docked to the top-right corner.
  *
- * Collapses to a single button when nothing is happening; while a sync runs it
- * shows which symbol is being pulled, what came back and how long the network
- * took. The panel stays open after a run so the latencies can be read — the
- * whole point of showing them is the moment you notice one symbol is slow.
+ * The toolbar button only opens and closes the panel — starting a sync takes a
+ * second, deliberate click on the button inside, because the job runs for
+ * minutes and hammers an upstream API that rate-limits. The panel opens by
+ * itself when a run starts (including one started from another tab) so the
+ * progress is never hidden, and can be closed at any time, mid-run included.
  */
 export function SyncPanel() {
   const { job, running, starting, trigger } = useSync();
-  const [dismissed, setDismissed] = useState(false);
-
-  const hasJob = job !== null && job.state !== SyncState.Idle;
-  const open = running || (hasJob && !dismissed);
-  const failed = job?.state === SyncState.Failed;
-
-  // Fold away on success; a failure stays up, because that is the one outcome
-  // worth reading after the fact.
-  useEffect(() => {
-    if (running || !hasJob || failed) return;
-    const timer = setTimeout(() => setDismissed(true), AUTO_DISMISS_MS);
-    return () => clearTimeout(timer);
-  }, [running, hasJob, failed, job?.id]);
-
-  const pct = job && job.total > 0 ? (job.completed / job.total) * 100 : 0;
+  const [open, setOpen] = useState(false);
+  const wasRunning = useRef(false);
 
   const busy = running || starting;
+  const hasJob = job !== null && job.state !== SyncState.Idle;
+  const failed = job?.state === SyncState.Failed;
+
+  // Reveal the panel when a run begins that this component did not start.
+  useEffect(() => {
+    if (running && !wasRunning.current) setOpen(true);
+    wasRunning.current = running;
+  }, [running]);
+
+  const pct = job && job.total > 0 ? (job.completed / job.total) * 100 : 0;
   const elapsed = job ? (job.elapsedMs / 1000).toFixed(1) : '0.0';
+  const phase = job?.phase ?? SyncPhase.Done;
 
   return (
     <Dock>
-      <Button
+      <Toggle
         $busy={busy}
-        disabled={busy}
-        onClick={() => {
-          setDismissed(false);
-          void trigger();
-        }}
-        title="Refresh every asset, then rebuild the snapshot and the daily report"
+        $open={open}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title={busy ? PHASE_HINT[phase] : 'Open sync'}
       >
-        {busy ? <Spinner /> : <Dot $color={theme.colors.success} />}
-        {busy ? 'Syncing' : 'Sync'}
-      </Button>
+        <Refresh busy={busy} />
+        {/* A bare counter while running, not "Syncing 12/23": the label sits
+            next to the live-status readout, and a button that changes width
+            mid-run would shove it around. */}
+        {busy && job ? `${job.completed}/${job.total}` : 'Sync'}
+      </Toggle>
 
-      {open && job && (
+      {open && (
         <Panel>
           <PanelHead>
-            <Phase>{PHASE_LABEL[job.phase]}</Phase>
-            <Counter>
-              {job.completed}/{job.total}
-            </Counter>
+            <Phase>{hasJob ? PHASE_LABEL[phase] : 'Sync'}</Phase>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {hasJob && (
+                <Counter>
+                  {job!.completed}/{job!.total}
+                </Counter>
+              )}
+              <CloseButton type="button" onClick={() => setOpen(false)} aria-label="Close">
+                ×
+              </CloseButton>
+            </div>
           </PanelHead>
 
-          <Track $pct={pct} />
+          {hasJob && <Track $pct={pct} />}
 
-          <StepList>
-            {job.steps.map((step) => (
-              <StepEntry key={step.symbol} step={step} active={job.current === step.symbol} />
-            ))}
-          </StepList>
+          {!hasJob && <Hint>{PHASE_HINT[SyncPhase.Done]}</Hint>}
 
-          {job.error && <Failure>{job.error}</Failure>}
+          {hasJob && (
+            <StepList>
+              {job!.steps.map((step) => (
+                <StepEntry key={step.symbol} step={step} active={job!.current === step.symbol} />
+              ))}
+            </StepList>
+          )}
 
-          <Footer>
-            <span>{elapsed}s elapsed</span>
-            {!running && (
-              <button
-                type="button"
-                onClick={() => setDismissed(true)}
-                style={{
-                  all: 'unset',
-                  cursor: 'pointer',
-                  color: theme.colors.accent,
-                }}
-              >
-                dismiss
-              </button>
-            )}
-          </Footer>
+          {job?.error && <Failure>{job.error}</Failure>}
+
+          <Actions>
+            <RunButton
+              $busy={busy}
+              disabled={busy}
+              onClick={() => void trigger()}
+              title={PHASE_HINT[SyncPhase.Done]}
+            >
+              <Refresh busy={busy} />
+              {busy ? 'Syncing…' : hasJob ? 'Sync again' : 'Start sync'}
+            </RunButton>
+          </Actions>
+
+          {hasJob && (
+            <Footer>
+              <span>{elapsed}s elapsed</span>
+              <span>{failed ? 'failed' : running ? 'running' : 'complete'}</span>
+            </Footer>
+          )}
         </Panel>
       )}
     </Dock>

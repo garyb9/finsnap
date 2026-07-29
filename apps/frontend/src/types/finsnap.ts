@@ -3,9 +3,16 @@ import type {
   CrossLabel,
   OptionsSide,
   OptionsSkewLabel,
+  SizeKind,
   Timeframe,
   Trajectory,
 } from './enums';
+
+/** Market cap for crypto, net assets for funds. */
+export type AssetSize = {
+  value: number;
+  kind: SizeKind;
+};
 
 export type BollingerBand = { upper: number; lower: number };
 
@@ -67,6 +74,7 @@ export type AssetSnap = {
   description?: string;
   currentPrice: number;
   changePct: number;
+  size?: AssetSize;
   timeframes: TimeframeAnalysis[];
   tsmom: { score: number; label: string };
   momentum: number;

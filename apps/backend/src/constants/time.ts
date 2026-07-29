@@ -5,6 +5,7 @@ export const MINUTE_MS = 60 * SECOND_MS;
 export const HOUR_MS = 60 * MINUTE_MS;
 export const DAY_MS = 24 * HOUR_MS;
 export const YEAR_DAYS = 365;
+export const YEAR_MS = YEAR_DAYS * DAY_MS;
 
 /** Nominal duration of one bar, used to detect a still-forming candle. */
 export const INTERVAL_MS: Record<BarInterval, number> = {

@@ -9,6 +9,7 @@ import {
   zscoreReversion,
 } from './meanReversion';
 import { emaCross, macdCross, priceAboveSma, smaCross, supertrendFollow } from './trend';
+import { tsmomTrend } from './tsmom';
 import type { Bar } from '../../collectors/types';
 
 /** Always long. The benchmark every other strategy is measured against. */
@@ -53,6 +54,9 @@ export const STRATEGIES: StrategyDef[] = [
   absoluteMomentum(252),
   absoluteMomentum(90),
   rsiTrend(14, 50),
+  // Puts the dashboard's own TSMOM reading on trial — see strategies/tsmom.ts.
+  tsmomTrend(55),
+  tsmomTrend(50),
 
   // Breakout
   donchianBreakout(20, 10),
@@ -64,6 +68,7 @@ export const STRATEGIES: StrategyDef[] = [
   rsiReversion(14, 30, 70),
   rsiReversion(2, 10, 60),
   bollingerReversion(20, 2),
+  bollingerReversion(20, 3),
   zscoreReversion(20, 2, 0),
 ];
 
@@ -84,3 +89,4 @@ export function applicableStrategies(barCount: number): StrategyDef[] {
 export * from './breakout';
 export * from './meanReversion';
 export * from './trend';
+export * from './tsmom';

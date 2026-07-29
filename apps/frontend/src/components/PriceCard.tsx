@@ -167,7 +167,7 @@ const TfChip = styled.span`
   font-size: 0.73rem;
   font-variant-numeric: tabular-nums;
   color: ${theme.colors.textMuted};
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(15, 35, 42, 0.5);
   border: 1px solid ${theme.colors.borderSlate};
   border-radius: ${theme.radius.sm};
   padding: 2px 7px;

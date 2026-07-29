@@ -145,6 +145,9 @@ export function analyzeAssetBars(label: string, bars: SymbolBars): AssetAnalysis
     [Timeframe.D, daily],
     [Timeframe.W, daily.length > 0 ? resampleCalendar(daily, 'week') : []],
     [Timeframe.M, daily.length > 0 ? resampleCalendar(daily, 'month') : []],
+    // Yearly needs deep history to say anything; assets listed a few years
+    // ago simply produce too few candles and are filtered out below.
+    [Timeframe.Y, daily.length > 0 ? resampleCalendar(daily, 'year') : []],
   ];
 
   const timeframes = candidates

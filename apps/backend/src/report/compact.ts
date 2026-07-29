@@ -14,7 +14,7 @@ import {
   type WindowId,
   type WindowResult,
 } from '../backtest/types';
-import { HEADLINE_WINDOWS } from '../constants';
+import { HEADLINE_WINDOWS, YEAR_MS } from '../constants';
 import { round } from '../lib/math';
 import type { AssetClass } from '../config';
 import type { AssetOpportunity, DailyReport } from './types';
@@ -22,6 +22,14 @@ import type { AssetOpportunity, DailyReport } from './types';
 export interface CompactWindow {
   window: WindowId;
   label: string;
+  /**
+   * Wall-clock years the window actually covered.
+   *
+   * Carried explicitly because the label is approximate ("5 years" may be 4.9)
+   * and `max` has no fixed length at all — compounding a CAGR against a guessed
+   * horizon would quietly misstate every figure derived from it.
+   */
+  years: number;
   cagrPct: number;
   benchmarkCagrPct: number;
   maxDrawdownPct: number;
@@ -63,6 +71,7 @@ export interface CompactAsset {
   assetClass: AssetClass;
   lastClose: number;
   lastChangePct: number;
+  size?: AssetOpportunity['size'];
   consensus: AssetOpportunity['consensus'];
   tsmom?: { score: number; label: string };
   momentum?: number;
@@ -86,9 +95,12 @@ function pickHeadline(windows: WindowResult[]): CompactWindow | null {
     HEADLINE_WINDOWS.map((id) => windows.find((w) => w.window === id)).find(Boolean) ?? windows[0];
   if (!chosen) return null;
 
+  const years = (chosen.stats.endTime - chosen.stats.startTime) / YEAR_MS;
+
   return {
     window: chosen.window,
     label: chosen.label,
+    years: round(years, 2),
     cagrPct: round(chosen.stats.cagrPct),
     benchmarkCagrPct: round(chosen.benchmark.cagrPct),
     maxDrawdownPct: round(chosen.stats.maxDrawdownPct),
@@ -126,6 +138,7 @@ export function compactAsset(asset: AssetOpportunity, topN = 5): CompactAsset {
     assetClass: asset.assetClass,
     lastClose: round(asset.lastClose, 2),
     lastChangePct: round(asset.lastChangePct, 2),
+    size: asset.size,
     consensus: asset.consensus,
     tsmom: asset.tsmom,
     momentum: asset.momentum,

@@ -6,5 +6,10 @@ export const Page = styled.main`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: ${theme.spacing['2xl']} ${theme.spacing.xl} 64px;
+  /* Top padding is modest because SiteHeader now supplies the chrome above. */
+  padding: ${theme.spacing.xl} ${theme.spacing.xl} 64px;
+
+  @media (max-width: ${theme.breakpoints.md}) {
+    padding: ${theme.spacing.md} ${theme.spacing.md} 48px;
+  }
 `;

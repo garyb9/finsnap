@@ -4,6 +4,7 @@ import type { AssetSpec, Config } from '../config';
 import { createLogger } from '../logger';
 import { BarCollector } from '../collectors/bars';
 import { fetchOptionsData } from '../collectors/options';
+import { fetchAssetSizes, type AssetSize } from '../collectors/quote';
 import { analyzeOptionsChain } from '../analyzers/options';
 import { analyzeAssetBars } from '../analyzers/price';
 import { analyzeTsmom } from '../analyzers/tsmom';
@@ -34,9 +35,16 @@ export class SnapBuilder {
 
     const assets: Record<string, AssetSnap> = {};
 
+    // One batched request for the whole universe; cached for hours, so this is
+    // a no-op on all but the first snap of the session.
+    const sizes = await fetchAssetSizes(
+      this.config.universe.map((s) => s.symbol),
+      this.redis
+    );
+
     for (const spec of this.config.universe) {
       try {
-        const snap = await this.buildAsset(spec);
+        const snap = await this.buildAsset(spec, sizes.get(spec.symbol.toUpperCase()));
         if (snap) assets[spec.label] = snap;
       } catch (err) {
         log.warn(`${spec.symbol}: snap failed (continuing): ${err}`);
@@ -71,7 +79,7 @@ export class SnapBuilder {
     return snap;
   }
 
-  private async buildAsset(spec: AssetSpec): Promise<AssetSnap | null> {
+  private async buildAsset(spec: AssetSpec, size?: AssetSize): Promise<AssetSnap | null> {
     const bars = await this.bars.fetchSymbol(spec.symbol);
     if (!bars.daily && !bars.hourly) {
       log.warn(`${spec.symbol}: no bar data available`);
@@ -88,6 +96,7 @@ export class SnapBuilder {
       assetClass: spec.assetClass,
       currentPrice: analysis.currentPrice,
       changePct: daily?.changePct ?? 0,
+      size,
       timeframes: analysis.timeframes,
       tsmom: { score: tsmom.score, label: tsmom.label },
       momentum: analysis.marketMomentum,

@@ -28,11 +28,18 @@ export const REPORT_TTL_SECONDS = 90 * DAY;
 export const REPORT_LATEST_TTL_SECONDS = 3 * DAY;
 export const REPORT_HISTORY_MAX = 180;
 
+/**
+ * Market cap and fund size move slowly, and an hour-stale figure changes no
+ * decision — so this is cached far longer than price data.
+ */
+export const QUOTE_CACHE_TTL_SECONDS = 6 * 60 * 60;
+
 // --- Redis key prefixes ---
 export const REDIS_KEYS = {
   bars: 'finsnap:bars',
   options: 'finsnap:options',
   yahooCrumb: 'finsnap:yahoo:crumb',
+  quoteSizes: 'finsnap:quote:sizes',
   snap: 'snap',
   snapLatest: 'snap:latest',
   snapHistory: 'snap:history',

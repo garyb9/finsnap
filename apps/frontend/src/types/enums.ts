@@ -21,6 +21,12 @@ export enum AssetCategory {
   Stock = 'stock',
 }
 
+/** Which measure of size a figure represents — they are not interchangeable. */
+export enum SizeKind {
+  MarketCap = 'marketCap',
+  NetAssets = 'netAssets',
+}
+
 /** Numbers the report puts on screen, each with a glossary entry. */
 export enum MetricId {
   EdgeScore = 'edgeScore',
@@ -53,6 +59,7 @@ export enum Timeframe {
   D = 'D',
   W = 'W',
   M = 'M',
+  Y = 'Y',
 }
 
 export enum StrategyKind {

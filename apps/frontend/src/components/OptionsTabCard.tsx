@@ -117,9 +117,9 @@ const NearSpotBadge = styled.span`
   padding: 1px 5px;
   border-radius: 4px;
   margin-left: 5px;
-  background: rgba(56, 189, 248, 0.1);
+  background: rgba(46, 194, 174, 0.12);
   color: ${theme.colors.accent};
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(46, 194, 174, 0.22);
   vertical-align: middle;
 `;
 

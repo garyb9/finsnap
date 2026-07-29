@@ -1,4 +1,5 @@
 import type { OptionsSkewInsight } from '../analyzers/types';
+import type { AssetSize } from '../collectors/quote';
 import type { AssetClass } from '../config';
 import type { StrategyReport } from '../backtest/types';
 import { BarInterval, SignalAction, Verdict } from '../constants/enums';
@@ -13,8 +14,26 @@ export interface Consensus {
   longWeight: number;
   /** Summed edge weight of strategies sitting in cash */
   flatWeight: number;
+  /** How many of `votingCount` are currently positioned long */
   longCount: number;
+  /**
+   * Every non-benchmark strategy. This is the denominator of `longCount`, and
+   * it is deliberately not the same population the score is computed from —
+   * see `qualifiedCount`.
+   */
   votingCount: number;
+  /**
+   * Strategies that actually carry weight in the score, i.e. whose edge clears
+   * `MIN_VOTING_EDGE`.
+   *
+   * Without this the head count and the score look contradictory: an asset can
+   * read "6/19 long" and still score 33, because thirteen of those nineteen
+   * have no demonstrated edge and contribute nothing. The count is unweighted;
+   * the score is weighted. Both are true and they measure different things.
+   */
+  qualifiedCount: number;
+  /** How many of `qualifiedCount` are long */
+  qualifiedLongCount: number;
   /** Strategies that flipped long on the last completed bar */
   freshEntries: number;
   /** Strategies that flipped flat on the last completed bar */
@@ -35,6 +54,8 @@ export interface AssetOpportunity {
   description?: string;
   lastClose: number;
   lastChangePct: number;
+  /** Market cap for crypto, net assets for funds. Absent when unavailable. */
+  size?: AssetSize;
   /** Last completed bar analyzed — the report never reasons past this */
   lastBarTime: number;
   historyStart: number;
