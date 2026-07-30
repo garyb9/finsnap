@@ -3,7 +3,14 @@ import styled from 'styled-components';
 import { ChartTooltip } from './ChartTooltip';
 import { theme } from '../styles/theme';
 import { fmtNum } from '../lib/format';
-import { daysToExpiry, shortDate, wallOf, type Wall } from '../lib/options';
+import {
+  daysToExpiry,
+  shortDate,
+  wallKind,
+  wallOf,
+  type Wall,
+  type WallKind,
+} from '../lib/options';
 import { OptionsSide } from '../types/enums';
 import type { OptionsExpiration } from '../types/finsnap';
 
@@ -101,10 +108,28 @@ const AxisText = styled.text<{ $compact: boolean }>`
   fill: ${theme.colors.label};
 `;
 
-const Point = styled.text<{ $color: string; $soft: boolean; $compact: boolean }>`
-  font-size: ${({ $compact }) => ($compact ? '9px' : '13px')};
+const Point = styled.text<{
+  $color: string;
+  $soft: boolean;
+  $compact: boolean;
+  $highlighted: boolean;
+}>`
+  font-size: ${({ $compact, $highlighted }) =>
+    $highlighted ? ($compact ? '11px' : '15px') : $compact ? '9px' : '13px'};
   fill: ${({ $color }) => $color};
-  opacity: ${({ $soft }) => ($soft ? 0.55 : 1)};
+  /* Soft leans read as "less certain than it looks" — unless singled out. Kept
+     subtle even then: a cluster of highlighted reds at full glow reads as a
+     blob rather than as a set of distinct markers. Glow colour is the
+     marker's own $color, not currentColor — this element never sets the CSS
+     color property, so currentColor would have picked up an unrelated
+     inherited value. */
+  opacity: ${({ $soft, $highlighted }) => ($highlighted ? 1 : $soft ? 0.55 : 1)};
+  filter: ${({ $highlighted, $color }) =>
+    $highlighted ? `drop-shadow(0 0 2px ${$color})` : 'none'};
+  transition:
+    font-size 0.15s ease,
+    opacity 0.15s ease,
+    filter 0.15s ease;
   cursor: pointer;
   text-anchor: middle;
   dominant-baseline: central;
@@ -128,9 +153,19 @@ interface Props {
    * picture even though they share the same data.
    */
   maxPoints?: number;
+  /** Shared with the wall glossary and "walls by date" list — same key, same meaning. */
+  hoveredKind: WallKind | null;
+  onHoverKind: (kind: WallKind | null) => void;
 }
 
-export function WallPriceChart({ expirations, spot, compact = false, maxPoints }: Props) {
+export function WallPriceChart({
+  expirations,
+  spot,
+  compact = false,
+  maxPoints,
+  hoveredKind,
+  onHoverKind,
+}: Props) {
   const [tip, setTip] = useState<Tip | null>(null);
   const size = compact ? COMPACT : FULL;
 
@@ -268,13 +303,18 @@ export function WallPriceChart({ expirations, spot, compact = false, maxPoints }
             $color={sideColor(wall.side)}
             $soft={wall.soft}
             $compact={compact}
-            onMouseEnter={(e) =>
-              setTip({ x: e.clientX, y: e.clientY, plotted: { exp, wall, x, y } })
-            }
+            $highlighted={hoveredKind === wallKind(wall)}
+            onMouseEnter={(e) => {
+              setTip({ x: e.clientX, y: e.clientY, plotted: { exp, wall, x, y } });
+              onHoverKind(wallKind(wall));
+            }}
             onMouseMove={(e) =>
               setTip((cur) => (cur ? { ...cur, x: e.clientX, y: e.clientY } : cur))
             }
-            onMouseLeave={() => setTip(null)}
+            onMouseLeave={() => {
+              setTip(null);
+              onHoverKind(null);
+            }}
           >
             {sideGlyph(wall.side)}
           </Point>

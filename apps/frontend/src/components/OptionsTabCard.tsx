@@ -1,9 +1,15 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { CardTitle, ExpTableScroll, ExpTable } from './Card';
 import { OptionsOverview } from './OptionsOverview';
 import { fmtNum, fmtK } from '../lib/format';
-import { assetsWithChains, daysToExpiry, shortDate, summarizeChain } from '../lib/options';
+import {
+  assetsWithChains,
+  daysToExpiry,
+  shortDate,
+  summarizeChain,
+  type WallKind,
+} from '../lib/options';
 import { theme } from '../styles/theme';
 import { OptionsSide, OptionsSkewLabel } from '../types/enums';
 import type { AssetSnap, OptionsExpiration, OptionsSkewInsight } from '../types/finsnap';
@@ -115,6 +121,20 @@ const TabBar = styled.div`
   &::-webkit-scrollbar {
     display: none;
   }
+`;
+
+/**
+ * Separates the base universe from tickers pulled in by a search.
+ *
+ * Stretched to the row rather than given a fixed height, so it always matches
+ * the tabs' own height instead of guessing at their font metrics.
+ */
+const TabDivider = styled.span`
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  margin: 5px 3px;
+  background: ${theme.colors.borderSlateTable};
 `;
 
 const Tab = styled.button<{ $active: boolean }>`
@@ -289,11 +309,19 @@ function SortHead({
 
 interface Props {
   assets: AssetSnap[];
+  /** Which wall glossary term is highlighted right now, shared with the page above. */
+  hoveredKind: WallKind | null;
+  onHoverKind: (kind: WallKind | null) => void;
 }
 
-export function OptionsTabCard({ assets }: Props) {
+export function OptionsTabCard({ assets, hoveredKind, onHoverKind }: Props) {
   // Only assets that actually carry a chain get a tab.
   const withChains = assetsWithChains(assets);
+  // The snapshot lists the configured universe first, searched tickers
+  // appended after — a divider marks where that split falls, when both kinds
+  // are actually present.
+  const firstSearched = withChains.findIndex((a) => a.searched);
+  const showDivider = firstSearched > 0;
   const [active, setActive] = useState(0);
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
 
@@ -315,9 +343,12 @@ export function OptionsTabCard({ assets }: Props) {
         <CardTitle style={{ margin: 0, whiteSpace: 'nowrap' }}>Options</CardTitle>
         <TabBar>
           {withChains.map((a, i) => (
-            <Tab key={a.symbol} $active={a.symbol === asset.symbol} onClick={() => setActive(i)}>
-              {a.label}
-            </Tab>
+            <Fragment key={a.symbol}>
+              {showDivider && i === firstSearched && <TabDivider />}
+              <Tab $active={a.symbol === asset.symbol} onClick={() => setActive(i)}>
+                {a.label}
+              </Tab>
+            </Fragment>
           ))}
         </TabBar>
       </Header>
@@ -330,7 +361,13 @@ export function OptionsTabCard({ assets }: Props) {
       {asset.description && <Description>{asset.description}</Description>}
 
       {data.expirations.length > 0 && (
-        <OptionsOverview summary={summary} expirations={data.expirations} spot={data.price} />
+        <OptionsOverview
+          summary={summary}
+          expirations={data.expirations}
+          spot={data.price}
+          hoveredKind={hoveredKind}
+          onHoverKind={onHoverKind}
+        />
       )}
 
       <Body>

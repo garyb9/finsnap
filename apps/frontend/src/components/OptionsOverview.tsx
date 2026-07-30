@@ -1,7 +1,17 @@
+import { useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { fmtK, fmtNum } from '../lib/format';
-import { daysToExpiry, shortDate, wallOf, type ChainSummary, type Wall } from '../lib/options';
+import {
+  daysToExpiry,
+  shortDate,
+  wallKind,
+  wallOf,
+  type ChainSummary,
+  type Wall,
+  type WallKind,
+} from '../lib/options';
+import { ChartTooltip } from './ChartTooltip';
 import { WallPriceChart } from './WallPriceChart';
 import { OptionsSide } from '../types/enums';
 import type { OptionsExpiration } from '../types/finsnap';
@@ -280,16 +290,26 @@ const Marker = styled.span<{
   $color: string;
   $soft: boolean;
   $clamped: boolean;
+  $highlighted: boolean;
 }>`
   position: absolute;
   top: 50%;
   left: ${({ $left }) => $left}%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(${({ $highlighted }) => ($highlighted ? 1.15 : 1)});
   font-size: 0.62rem;
   line-height: 1;
   color: ${({ $color }) => $color};
-  /* Soft leans and pinned outliers both read as "less certain than it looks". */
-  opacity: ${({ $soft, $clamped }) => ($soft ? 0.5 : $clamped ? 0.65 : 1)};
+  /* Soft leans and pinned outliers both read as "less certain than it looks" —
+     unless the reader has singled this one out, which overrides both. Kept
+     subtle even then: a cluster of highlighted reds at full glow reads as a
+     blob rather than as a set of distinct markers. */
+  opacity: ${({ $soft, $clamped, $highlighted }) =>
+    $highlighted ? 1 : $soft ? 0.5 : $clamped ? 0.65 : 1};
+  filter: ${({ $highlighted }) => ($highlighted ? 'drop-shadow(0 0 2px currentColor)' : 'none')};
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease,
+    filter 0.15s ease;
   /* Reads as a mark on the track rather than as text that fell on the line. */
   text-shadow:
     0 0 2px ${theme.colors.cardBgEnd},
@@ -326,6 +346,8 @@ const MoreNote = styled.div`
 /** Rows past this and the map stops being a shape you can take in at once. */
 const MAX_MAP_ROWS = 18;
 
+type MapTip = { x: number; y: number; wall: Wall };
+
 /**
  * Where the walls sit, by date.
  *
@@ -335,7 +357,18 @@ const MAX_MAP_ROWS = 18;
  * away from spot as the dates get further out. Laid on a shared axis those read
  * off instantly and no single row has to be looked up.
  */
-function WallMap({ expirations, spot }: { expirations: OptionsExpiration[]; spot: number }) {
+function WallMap({
+  expirations,
+  spot,
+  hoveredKind,
+  onHoverKind,
+}: {
+  expirations: OptionsExpiration[];
+  spot: number;
+  hoveredKind: WallKind | null;
+  onHoverKind: (kind: WallKind | null) => void;
+}) {
+  const [tip, setTip] = useState<MapTip | null>(null);
   const shown = [...expirations]
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, MAX_MAP_ROWS);
@@ -393,12 +426,18 @@ function WallMap({ expirations, spot }: { expirations: OptionsExpiration[]; spot
                     $color={color}
                     $soft={wall.soft}
                     $clamped={isClamped}
-                    title={
-                      `${shortDate(wall.date)}: ${sideWord(wall.side)} wall at $${fmtNum(wall.strike, 2)}, ` +
-                      `${wall.distancePct >= 0 ? '+' : ''}${wall.distancePct.toFixed(1)}% from spot` +
-                      `${wall.nearSpot ? ' — clustered on spot' : ''}${wall.soft ? ' — soft' : ''}` +
-                      `${isClamped ? ' — beyond the axis, pinned to the edge' : ''}`
+                    $highlighted={hoveredKind === wallKind(wall)}
+                    onMouseEnter={(e) => {
+                      setTip({ x: e.clientX, y: e.clientY, wall });
+                      onHoverKind(wallKind(wall));
+                    }}
+                    onMouseMove={(e) =>
+                      setTip((cur) => (cur ? { ...cur, x: e.clientX, y: e.clientY } : cur))
                     }
+                    onMouseLeave={() => {
+                      setTip(null);
+                      onHoverKind(null);
+                    }}
                   >
                     {sideGlyph(wall.side)}
                   </Marker>
@@ -426,6 +465,23 @@ function WallMap({ expirations, spot }: { expirations: OptionsExpiration[]; spot
         <MoreNote>
           Nearest {MAX_MAP_ROWS} of {expirations.length} expiries — the rest are in the table below.
         </MoreNote>
+      )}
+
+      {tip && (
+        <ChartTooltip x={tip.x} y={tip.y}>
+          <strong style={{ color: sideColor(tip.wall.side), fontSize: '0.85rem' }}>
+            ${fmtNum(tip.wall.strike, 2)}
+          </strong>
+          <br />
+          {sideWord(tip.wall.side)} wall · {shortDate(tip.wall.date)}
+          <br />
+          <span style={{ color: theme.colors.label }}>
+            {daysToExpiry(tip.wall.date)}d out · {tip.wall.distancePct >= 0 ? '+' : ''}
+            {tip.wall.distancePct.toFixed(1)}% from spot
+            {tip.wall.soft ? ' · soft lean' : ''}
+            {tip.wall.nearSpot ? ' · clustered on spot' : ''}
+          </span>
+        </ChartTooltip>
       )}
     </MapWrap>
   );
@@ -471,10 +527,14 @@ export function OptionsOverview({
   summary,
   expirations,
   spot,
+  hoveredKind,
+  onHoverKind,
 }: {
   summary: ChainSummary;
   expirations: OptionsExpiration[];
   spot: number;
+  hoveredKind: WallKind | null;
+  onHoverKind: (kind: WallKind | null) => void;
 }) {
   const { oiPutCall, volumePutCall } = summary;
 
@@ -516,12 +576,19 @@ export function OptionsOverview({
               spot={spot}
               compact
               maxPoints={MAX_MAP_ROWS}
+              hoveredKind={hoveredKind}
+              onHoverKind={onHoverKind}
             />
           </ChartSlot>
         )}
       </Strip>
 
-      <WallMap expirations={expirations} spot={spot} />
+      <WallMap
+        expirations={expirations}
+        spot={spot}
+        hoveredKind={hoveredKind}
+        onHoverKind={onHoverKind}
+      />
     </Overview>
   );
 }

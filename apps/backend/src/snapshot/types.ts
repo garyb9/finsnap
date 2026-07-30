@@ -8,6 +8,8 @@ export interface AssetSnap {
   /** Display label — BTC, SPY, ... */
   label: string;
   assetClass: AssetClass;
+  /** True for a ticker pulled in by a user search rather than configured at boot */
+  searched: boolean;
   description?: string;
   currentPrice: number;
   /** Change across the most recent completed daily bar */

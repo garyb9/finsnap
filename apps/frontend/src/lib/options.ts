@@ -32,6 +32,22 @@ export type Wall = {
   sideOI: number;
 };
 
+/**
+ * Which of the four wall glossary cases a wall falls into — the same split
+ * the options page explains above the chain: side (call/put) crossed with
+ * position relative to spot (above/below).
+ *
+ * Shared between the glossary tiles and the two wall charts so hovering
+ * either one can highlight the other: same key, same meaning, everywhere.
+ */
+export type WallKind = 'callAbove' | 'callBelow' | 'putBelow' | 'putAbove';
+
+export function wallKind(wall: Pick<Wall, 'side' | 'distancePct'>): WallKind {
+  const above = wall.distancePct >= 0;
+  if (wall.side === OptionsSide.Calls) return above ? 'callAbove' : 'callBelow';
+  return above ? 'putAbove' : 'putBelow';
+}
+
 export type ChainSummary = {
   expiries: number;
   firstDate: string | null;

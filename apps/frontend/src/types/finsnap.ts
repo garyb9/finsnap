@@ -71,6 +71,8 @@ export type AssetSnap = {
   symbol: string;
   label: string;
   assetClass: AssetClass;
+  /** True for a ticker pulled in by a user search rather than configured at boot */
+  searched: boolean;
   description?: string;
   currentPrice: number;
   changePct: number;

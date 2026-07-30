@@ -8,6 +8,7 @@ import { SnapScheduler } from './scheduler/cron';
 import { TelegramOutput } from './output/telegram';
 import { WebOutput } from './output/web';
 import { SyncRunner } from './sync/runner';
+import { UniverseRegistry } from './universe/registry';
 import { STRATEGIES } from './backtest/strategies';
 import { STARTUP_REPORT_MAX_AGE_MS, STARTUP_SNAP_MAX_AGE_MS } from './constants';
 import logger from './logger';
@@ -70,7 +71,13 @@ async function main() {
   );
 
   const sync = new SyncRunner(config, redis, scheduler);
-  const web = new WebOutput({ config, snapStore, reportStore, scheduler, sync, telegram, redis });
+  const universe = new UniverseRegistry(config, redis);
+  const web = new WebOutput({ config, snapStore, reportStore, scheduler, sync, universe, telegram, redis });
+
+  // Restores any searches that survived a restart, widening config.universe
+  // before anything reads it. Quick — a Redis SCAN over a handful of keys —
+  // so it runs before serving rather than in the background.
+  await universe.start();
 
   logger.info(
     `tracking ${config.universe.length} assets ` +
@@ -93,6 +100,7 @@ async function main() {
   async function shutdown() {
     logger.info('shutting down...');
     scheduler.stop();
+    universe.stop();
     await disconnectRedis();
     process.exit(0);
   }

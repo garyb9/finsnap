@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { pulse } from '../styles/keyframes';
 import { theme } from '../styles/theme';
 import { relativeTime } from '../lib/format';
+import { TickerSearch } from './TickerSearch';
 
 /**
  * The bar across the top of every page: identity on the left, section tabs in
@@ -107,7 +108,6 @@ const Tab = styled(Link)<{ $active: boolean }>`
 `;
 
 const Status = styled.div<{ $stale: boolean }>`
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -168,6 +168,8 @@ export function SiteHeader({ snapAt, stale = false }: SiteHeaderProps) {
             </Tab>
           ))}
         </Tabs>
+
+        <TickerSearch />
 
         {snapAt && (
           <Status $stale={stale}>

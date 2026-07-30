@@ -92,6 +92,8 @@ export interface AssetSpec {
   periodsPerYear: number;
   /** True when an options chain should be pulled for this asset */
   hasOptions: boolean;
+  /** True for a ticker pulled in by a user search rather than configured at boot */
+  searched: boolean;
 }
 
 export interface Config extends RawConfig {
@@ -112,8 +114,37 @@ function splitList(raw: string): string[] {
 }
 
 /** BTC-USD → BTC. Equity symbols are already their own label. */
-function toLabel(symbol: string): string {
+export function toLabel(symbol: string): string {
   return symbol.replace(/-USD$/, '');
+}
+
+/**
+ * Build one universe entry.
+ *
+ * Exported so a ticker pulled in later by a user search (see
+ * `src/universe/registry.ts`) is built the exact same way as one configured at
+ * boot — same label, reference lookup and fallback category — and so is
+ * genuinely indistinguishable from the rest of the universe.
+ */
+export function buildAssetSpec(
+  symbol: string,
+  assetClass: AssetClass,
+  periodsPerYear: number,
+  hasOptions: boolean,
+  searched = false
+): AssetSpec {
+  const info = assetInfo(symbol, assetClass);
+  return {
+    symbol,
+    label: toLabel(symbol),
+    name: info.name,
+    shortName: info.shortName,
+    assetClass,
+    category: info.category,
+    periodsPerYear,
+    hasOptions,
+    searched,
+  };
 }
 
 export function loadConfig(): Config {
@@ -146,31 +177,17 @@ export function loadConfig(): Config {
 
   const optionsList = splitList(result.data.optionsSymbols);
 
-  function toSpec(
-    symbol: string,
-    assetClass: AssetClass,
-    periodsPerYear: number,
-    hasOptions: boolean
-  ): AssetSpec {
-    const info = assetInfo(symbol, assetClass);
-    return {
-      symbol,
-      label: toLabel(symbol),
-      name: info.name,
-      shortName: info.shortName,
-      assetClass,
-      category: info.category,
-      periodsPerYear,
-      hasOptions,
-    };
-  }
-
   const universe: AssetSpec[] = [
     ...splitList(result.data.cryptoSymbols).map((symbol) =>
-      toSpec(symbol, AssetClass.Crypto, PERIODS_PER_YEAR.cryptoDaily, false)
+      buildAssetSpec(symbol, AssetClass.Crypto, PERIODS_PER_YEAR.cryptoDaily, false)
     ),
     ...splitList(result.data.equitySymbols).map((symbol) =>
-      toSpec(symbol, AssetClass.Equity, PERIODS_PER_YEAR.equityDaily, optionsList.includes(symbol))
+      buildAssetSpec(
+        symbol,
+        AssetClass.Equity,
+        PERIODS_PER_YEAR.equityDaily,
+        optionsList.includes(symbol)
+      )
     ),
   ];
 

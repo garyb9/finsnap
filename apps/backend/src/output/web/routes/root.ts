@@ -17,6 +17,7 @@ const ENDPOINTS: Record<string, string> = {
   'GET /guide': 'Field guide — what each asset, strategy and metric means',
   'POST /sync': 'Refresh every asset, then rebuild the snapshot and report',
   'GET /sync': 'Progress of the current or last sync',
+  'POST /universe/:symbol': 'Search a ticker in — tracked for 24h, same as the rest of the universe',
   'POST /telegram/webhook': 'Telegram update sink (webhook mode only)',
   'GET /health': 'Health check',
 };

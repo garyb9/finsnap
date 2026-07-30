@@ -9,6 +9,7 @@ import { registerSnapRoutes } from './snap';
 import { registerStrategyRoutes } from './strategies';
 import { registerSyncRoutes } from './sync';
 import { registerTelegramRoutes } from './telegram';
+import { registerUniverseRoutes } from './universe';
 import type { RouteContext, RouteRegistrar } from '../types';
 
 /**
@@ -19,7 +20,7 @@ import type { RouteContext, RouteRegistrar } from '../types';
  * `GET /sync` is deliberately absent: the progress readout is a read, and
  * locking it would break the panel for an anonymous viewer.
  */
-const GUARDED_POST_PATHS = ['/sync', '/report/trigger', '/snap/trigger'];
+const GUARDED_POST_PATHS = ['/sync', '/report/trigger', '/snap/trigger', '/universe/:symbol'];
 
 /**
  * Registration order is significant: Hono matches routes in the order they are
@@ -35,6 +36,7 @@ const REGISTRARS: RouteRegistrar[] = [
   registerGuideRoutes,
   registerSyncRoutes,
   registerTelegramRoutes,
+  registerUniverseRoutes,
   registerSnapRoutes,
 ];
 

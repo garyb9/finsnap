@@ -94,6 +94,7 @@ export class SnapBuilder {
       symbol: spec.symbol,
       label: spec.label,
       assetClass: spec.assetClass,
+      searched: spec.searched,
       currentPrice: analysis.currentPrice,
       changePct: daily?.changePct ?? 0,
       size,

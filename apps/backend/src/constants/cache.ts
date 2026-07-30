@@ -17,6 +17,9 @@ export const BAR_CACHE_TTL_SECONDS: Record<BarInterval, number> = {
 export const OPTIONS_CACHE_TTL_SECONDS = 5 * MINUTE;
 export const YAHOO_CRUMB_TTL_SECONDS = 23 * HOUR;
 
+/** How long a ticker pulled in by a user search stays in the tracked universe. */
+export const SEARCHED_TICKER_TTL_SECONDS = DAY;
+
 // --- Snapshot storage ---
 export const SNAP_TTL_SECONDS = DAY;
 export const SNAP_LATEST_TTL_SECONDS = 2 * HOUR;
@@ -40,6 +43,7 @@ export const REDIS_KEYS = {
   options: 'finsnap:options',
   yahooCrumb: 'finsnap:yahoo:crumb',
   quoteSizes: 'finsnap:quote:sizes',
+  searchedTicker: 'finsnap:universe:searched',
   snap: 'snap',
   snapLatest: 'snap:latest',
   snapHistory: 'snap:history',

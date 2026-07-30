@@ -73,3 +73,40 @@ export async function startSync(): Promise<SyncJob | null> {
     return null;
   }
 }
+
+export type SearchTickerResult =
+  | { ok: true; symbol: string; label: string; expiresAt: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Pull a ticker into the tracked universe for 24 hours.
+ *
+ * Unlike the other calls here this surfaces the failure reason rather than
+ * swallowing it — a search box that fails silently on a typo just looks
+ * broken, so the caller needs the server's actual message to show the user.
+ */
+export async function searchTicker(symbol: string): Promise<SearchTickerResult> {
+  try {
+    const res = await fetch(`${API_BASE}/universe/${encodeURIComponent(symbol)}`, {
+      method: 'POST',
+    });
+    const body = (await res.json()) as {
+      spec?: { symbol: string; label: string };
+      expiresAt?: string | null;
+      error?: string;
+    };
+
+    if (!res.ok || !body.spec) {
+      return { ok: false, error: body.error ?? 'Ticker search failed — try again' };
+    }
+
+    return {
+      ok: true,
+      symbol: body.spec.symbol,
+      label: body.spec.label,
+      expiresAt: body.expiresAt ?? null,
+    };
+  } catch {
+    return { ok: false, error: 'Could not reach the server — try again' };
+  }
+}

@@ -5,6 +5,7 @@ import type { SnapStore } from '../../storage/snapStore';
 import type { ReportStore } from '../../storage/reportStore';
 import type { SnapScheduler } from '../../scheduler/cron';
 import type { SyncRunner } from '../../sync/runner';
+import type { UniverseRegistry } from '../../universe/registry';
 import type { TelegramOutput } from '../telegram';
 
 /** Everything the route modules are allowed to reach for. */
@@ -14,6 +15,7 @@ export interface RouteContext {
   reportStore: ReportStore;
   scheduler: SnapScheduler;
   sync: SyncRunner;
+  universe: UniverseRegistry;
   telegram: TelegramOutput;
   /** Only the correlation route reaches for this directly — bar cache reads, not writes to shared jobs. */
   redis: Redis;
