@@ -68,10 +68,13 @@ interface Entitlement {
 }
 ```
 
-Storage: Redis for the hot daily counter (natural TTL, matches the existing cache
-patterns in `storage/`), Postgres for `subscriptionStatus` and `perSymbolCounts` once the
-Epic 0 Postgres adapter lands — cumulative counts and billing state need to survive a
-Redis flush; the daily counter doesn't.
+Storage: Postgres, entirely — one row per user, updated atomically by the
+`check_and_increment_quota` function
+(see [backend-data-architecture.md](./backend-data-architecture.md#no-redis)). No Redis:
+at hobby scale a handful of increments per user per day is a trivial write load, and
+splitting durable subscription state from an ephemeral daily counter across two stores
+just creates a consistency problem (and a silent-reset risk on Redis eviction) with no
+real benefit at this volume.
 
 ## 3. Backend: one shared entitlement service
 

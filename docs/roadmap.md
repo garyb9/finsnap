@@ -19,7 +19,9 @@ once Epic 2 proves people will pay.
 Make it trustworthy before charging for it.
 
 - Postgres adapter for the existing storage port (`storage/types.ts`) — real, queryable
-  history instead of Redis-only lists.
+  history instead of Redis-only lists. See
+  [design/backend-data-architecture.md](./design/backend-data-architecture.md) for the
+  runtime/data-model shape and why it avoids nihongo-go's latency and duplication issues.
 - Data-provider resilience: paid provider fallback or a hardened Yahoo session. Yahoo
   Finance from a datacenter IP is the single most likely thing to break a hosted deploy.
 - Cron failure alerting — the report/sync job fails silently today; ping an ops Telegram
@@ -28,11 +30,15 @@ Make it trustworthy before charging for it.
 
 ## Epic 1 — Ship it somewhere
 
-- Backend → Fly/Railway (needs a long-lived process for Telegram polling + the 10-minute
-  snapshot cron).
-- Frontend → Vercel, move to SSR so the dashboard isn't blank until JS boots.
+Decided — see [hosting.md](./hosting.md) for the full comparison and reasoning:
+
+- Backend → **Railway** (needs a long-lived process for Telegram polling + the
+  10-minute snapshot cron).
+- Frontend → **Vercel**, move to SSR so the dashboard isn't blank until JS boots.
+- Database → **Supabase**, Postgres only (see
+  [design/backend-data-architecture.md](./design/backend-data-architecture.md)).
 - Fill in the empty deploy jobs in `.github/workflows/backend.yml` /
-  `.github/workflows/frontend.yml`.
+  `.github/workflows/frontend.yml` — our own CI gate, not the platforms' auto-deploy.
 - Domain, health-check monitoring, a status page.
 
 ## Epic 2 — Telegram as the product (revenue #1)
