@@ -52,6 +52,22 @@ describe('SyncTracker', () => {
     expect(tracker.current?.completed).toBe(1);
   });
 
+  it('stamps a step with when it started, so a client can show live elapsed time', () => {
+    const tracker = new SyncTracker();
+    tracker.begin(SPECS);
+
+    expect(tracker.current!.steps[0].startedAt).toBeNull();
+
+    tracker.beginSymbol('SPY');
+    const startedAt = tracker.current!.steps[0].startedAt;
+    expect(startedAt).not.toBeNull();
+    expect(new Date(startedAt!).getTime()).not.toBeNaN();
+
+    // Stays put once set — finishing doesn't clear when it began.
+    tracker.endSymbol('SPY', SyncStage.Done);
+    expect(tracker.current!.steps[0].startedAt).toBe(startedAt);
+  });
+
   it('accumulates fetch records against the right symbol', () => {
     const tracker = new SyncTracker();
     tracker.begin(SPECS);

@@ -3,8 +3,7 @@
 FinSnap today: a solo-built systematic signal engine — 23-asset universe, 20 backtested
 strategies with no-lookahead execution, edge/opportunity scoring, a daily report, a live
 snapshot, options context, a Telegram bot, and a 5-tab Next.js dashboard. Not hosted.
-Single-tenant — one hardcoded universe, one Telegram channel, no accounts, no billing, no
-persistent history (Redis only).
+Single-tenant — one hardcoded universe, one Telegram channel, no accounts, no billing.
 
 This roadmap sequences the path from "well-engineered personal tool" to "sellable
 product," in six epics. See [marketing/go-to-market.md](./marketing/go-to-market.md) for
@@ -18,10 +17,12 @@ once Epic 2 proves people will pay.
 
 Make it trustworthy before charging for it.
 
-- Postgres adapter for the existing storage port (`storage/types.ts`) — real, queryable
-  history instead of Redis-only lists. See
-  [design/backend-data-architecture.md](./design/backend-data-architecture.md) for the
-  runtime/data-model shape and why it avoids nihongo-go's latency and duplication issues.
+- ~~Postgres adapter for the existing storage port (`storage/types.ts`) — real, queryable
+  history instead of Redis-only lists.~~ Done: bar history, the options-chain archive,
+  snap/report storage and the searched-ticker registry all run on Postgres now; `ioredis`
+  is gone. See [design/backend-data-architecture.md](./design/backend-data-architecture.md)
+  for the runtime/data-model shape and why it avoids nihongo-go's latency and duplication
+  issues.
 - Data-provider resilience: paid provider fallback or a hardened Yahoo session. Yahoo
   Finance from a datacenter IP is the single most likely thing to break a hosted deploy.
 - Cron failure alerting — the report/sync job fails silently today; ping an ops Telegram
@@ -33,7 +34,7 @@ Make it trustworthy before charging for it.
 Decided — see [hosting.md](./hosting.md) for the full comparison and reasoning:
 
 - Backend → **Railway** (needs a long-lived process for Telegram polling + the
-  10-minute snapshot cron).
+  hourly snapshot cron).
 - Frontend → **Vercel**, move to SSR so the dashboard isn't blank until JS boots.
 - Database → **Supabase**, Postgres only (see
   [design/backend-data-architecture.md](./design/backend-data-architecture.md)).

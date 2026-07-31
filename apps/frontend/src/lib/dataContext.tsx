@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { fetchGuide, fetchReport, fetchSnap, fetchStrategyLeaderboard } from './api';
 import { useSync } from './useSync';
 import { SyncState } from '../types/sync';

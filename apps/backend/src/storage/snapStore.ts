@@ -1,6 +1,6 @@
 import { createLogger } from '../logger';
 import {
-  REDIS_KEYS,
+  STORAGE_KEYS,
   SNAP_HISTORY_MAX,
   SNAP_LATEST_TTL_SECONDS,
   SNAP_TTL_SECONDS,
@@ -17,10 +17,10 @@ export class SnapStore {
   async saveSnap(snap: FinSnap): Promise<void> {
     const json = JSON.stringify(snap);
     try {
-      await this.storage.set(`${REDIS_KEYS.snap}:${snap.id}`, json, SNAP_TTL_SECONDS);
-      await this.storage.set(REDIS_KEYS.snapLatest, json, SNAP_LATEST_TTL_SECONDS);
-      await this.storage.listPush(REDIS_KEYS.snapHistory, snap.id);
-      await this.storage.listTrim(REDIS_KEYS.snapHistory, SNAP_HISTORY_MAX);
+      await this.storage.set(`${STORAGE_KEYS.snap}:${snap.id}`, json, SNAP_TTL_SECONDS);
+      await this.storage.set(STORAGE_KEYS.snapLatest, json, SNAP_LATEST_TTL_SECONDS);
+      await this.storage.listPush(STORAGE_KEYS.snapHistory, snap.id);
+      await this.storage.listTrim(STORAGE_KEYS.snapHistory, SNAP_HISTORY_MAX);
       log.info(`saved snap ${snap.id}`);
     } catch (err) {
       log.error(`failed to save snap ${snap.id}: ${err}`);
@@ -29,21 +29,21 @@ export class SnapStore {
   }
 
   async getLatest(): Promise<FinSnap | null> {
-    return this.read(REDIS_KEYS.snapLatest);
+    return this.read(STORAGE_KEYS.snapLatest);
   }
 
   async getById(id: string): Promise<FinSnap | null> {
-    return this.read(`${REDIS_KEYS.snap}:${id}`);
+    return this.read(`${STORAGE_KEYS.snap}:${id}`);
   }
 
   async getHistory(limit = 10): Promise<FinSnap[]> {
-    const ids = await this.storage.listRange(REDIS_KEYS.snapHistory, limit);
+    const ids = await this.storage.listRange(STORAGE_KEYS.snapHistory, limit);
     const snaps = await Promise.all(ids.map((id) => this.getById(id)));
     return snaps.filter((s): s is FinSnap => s !== null);
   }
 
   async count(): Promise<number> {
-    return this.storage.listLength(REDIS_KEYS.snapHistory);
+    return this.storage.listLength(STORAGE_KEYS.snapHistory);
   }
 
   private async read(key: string): Promise<FinSnap | null> {

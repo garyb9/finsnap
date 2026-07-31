@@ -42,6 +42,7 @@ export class SyncTracker {
       label: spec.label,
       stage: SyncStage.Queued,
       fetches: [],
+      startedAt: null,
       ms: null,
     }));
     for (const step of steps) this.stepsBySymbol.set(step.symbol, step);
@@ -66,6 +67,7 @@ export class SyncTracker {
     const step = this.stepsBySymbol.get(symbol);
     if (!step || !this.job) return;
     step.stage = SyncStage.Bars;
+    step.startedAt = new Date().toISOString();
     this.job.current = symbol;
     this.symbolStartedAt.set(symbol, Date.now());
   }

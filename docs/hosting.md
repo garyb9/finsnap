@@ -13,11 +13,12 @@ worth scaling past until there's real revenue to justify it.
 | Frontend (Next.js dashboard) | **Vercel** | Free tier |
 | Database | **Supabase** (Postgres only) | Free tier |
 
-No separate cache service — Redis was evaluated and dropped. The backend is one
-persistent process, so the short-TTL Yahoo Finance caches live in in-process memory (a
-plain `Map` or `lru-cache`), and the tiered-access quota counters live in Postgres
-alongside everything else durable. See
-[design/backend-data-architecture.md](./design/backend-data-architecture.md#no-redis).
+No separate cache service — Redis was evaluated, dropped, and the code has caught up:
+`ioredis` is gone from the backend. The backend is one persistent process, so the
+short-TTL Yahoo Finance caches live in in-process memory, and everything durable (bar
+history, the options-chain archive, snap/report storage, the searched-ticker registry, and
+eventually the tiered-access quota counters) lives in Postgres. See
+[design/backend-data-architecture.md](./design/backend-data-architecture.md#no-redis--implemented).
 
 Realistic total to start: **~$5/mo**.
 
@@ -26,7 +27,7 @@ Realistic total to start: **~$5/mo**.
 Everything here was checked against the same requirement:
 [design/backend-data-architecture.md](./design/backend-data-architecture.md) rules out
 serverless because FinSnap needs a process that stays alive continuously — Telegram
-polling holds an open connection, and the 10-minute snapshot cron needs somewhere to
+polling holds an open connection, and the hourly snapshot cron needs somewhere to
 tick. Anything invocation-based (serverless functions, edge compute) fails this
 regardless of how good its free tier looks, unless Telegram is rebuilt around webhook
 mode and the batch job is decomposed to fit an execution-time budget — both real,
@@ -57,7 +58,7 @@ moment there's a second project to host.
 | --- | --- | --- | --- |
 | **Supabase** | $0 (500MB DB, 500MB RAM, unlimited API requests, no card, commercial use allowed) | Pauses after **7 days** of zero API activity (emails a warning first, data retained) | **Picked.** The 7-day threshold never triggers here — the snapshot cron and bot hit the DB constantly. Caps at 2 active free projects account-wide, worth watching as more side projects spin up. |
 | Railway Postgres | Not free — draws from the same $5 Hobby credit as the backend (~$0.25/GB/mo storage + CPU/RAM/network), or $10-40/mo as a sized instance | N/A | Would sit on the same network as the backend (no cross-provider hop), but costs real money and competes with the backend's own credit rather than adding a second free allowance. Not worth it for a latency win of a few ms — see below. |
-| Neon (serverless Postgres) | $0 (0.5GB storage, 100 compute-hrs/mo) | Autosuspends after **5 minutes** of inactivity | **Worse fit than Supabase specifically for our cadence.** The snapshot cron runs every 10 minutes — longer than Neon's 5-minute suspend window — so the DB would cold-start (500ms-1s) on nearly every cron cycle. Not a lateral option here. |
+| Neon (serverless Postgres) | $0 (0.5GB storage, 100 compute-hrs/mo) | Autosuspends after **5 minutes** of inactivity | **Worse fit than Supabase specifically for our cadence.** The snapshot cron runs hourly — far longer than Neon's 5-minute suspend window — so the DB would cold-start (500ms-1s) on every cron cycle. Not a lateral option here. |
 | Convex (as a DB, if the whole platform were adopted) | $0 then $25/developer/mo | N/A | Only relevant if adopting Convex wholesale — see backend table. Not a drop-in Postgres replacement. |
 
 **Cross-provider latency (Railway ↔ Supabase)**: real but small. Railway runs its own

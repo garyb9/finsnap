@@ -1,10 +1,11 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
 import { AssetClass, buildAssetSpec, type AssetSpec, type Config } from '../config';
 import { BarCollector } from '../collectors/bars';
+import type { BarsStore } from '../storage/barsStore';
+import type { SearchedTickerStore } from '../storage/searchedTickerStore';
 import { BarInterval } from '../constants/enums';
 import { PERIODS_PER_YEAR } from '../constants/time';
-import { REDIS_KEYS, SEARCHED_TICKER_TTL_SECONDS } from '../constants/cache';
+import { SEARCHED_TICKER_TTL_SECONDS } from '../constants/cache';
 
 const log = createLogger('universe');
 
@@ -61,16 +62,19 @@ export class UniverseRegistry {
 
   constructor(
     private config: Config,
-    private redis: Redis
+    private searchedTickerStore: SearchedTickerStore,
+    barsStore: BarsStore
   ) {
     this.baseUniverse = [...config.universe];
-    this.bars = new BarCollector(redis);
+    this.bars = new BarCollector(barsStore);
   }
 
   /** Restore searches that survived a restart, then start sweeping expired ones. */
   async start(): Promise<void> {
     await this.hydrate();
-    this.sweepTimer = setInterval(() => this.sweep(), SWEEP_INTERVAL_MS);
+    this.sweepTimer = setInterval(() => {
+      this.sweep().catch((err) => log.warn(`sweep failed: ${err}`));
+    }, SWEEP_INTERVAL_MS);
     this.sweepTimer.unref?.();
   }
 
@@ -97,12 +101,14 @@ export class UniverseRegistry {
       return { spec: tracked, expiresAt: this.expiryOf(symbol) };
     }
 
-    const daily = await this.bars.fetchSeries(symbol, BarInterval.Daily);
+    const daily = await this.bars.fetchSeries(symbol, BarInterval.Daily, { force: true });
     if (!daily || daily.bars.length === 0) throw new TickerNotFoundError(symbol);
 
     const assetClass = /-USD$/.test(symbol) ? AssetClass.Crypto : AssetClass.Equity;
     const periodsPerYear =
-      assetClass === AssetClass.Crypto ? PERIODS_PER_YEAR.cryptoDaily : PERIODS_PER_YEAR.equityDaily;
+      assetClass === AssetClass.Crypto
+        ? PERIODS_PER_YEAR.cryptoDaily
+        : PERIODS_PER_YEAR.equityDaily;
     // Options are attempted for every searched equity; a chain that turns out
     // to be thin or missing is skipped later the same way it is for the base
     // universe, rather than guessed at up front.
@@ -136,47 +142,21 @@ export class UniverseRegistry {
     this.rebuild();
 
     try {
-      await this.redis.set(
-        `${REDIS_KEYS.searchedTicker}:${symbol}`,
-        JSON.stringify(spec),
-        'EX',
-        SEARCHED_TICKER_TTL_SECONDS
-      );
+      await this.searchedTickerStore.upsert(symbol, spec, expiresAt);
     } catch (err) {
       log.warn(`failed to persist searched ticker ${symbol} (continuing in memory only): ${err}`);
     }
   }
 
   private async hydrate(): Promise<void> {
-    const prefix = `${REDIS_KEYS.searchedTicker}:`;
-    let cursor = '0';
-    const keys: string[] = [];
+    const rows = await this.searchedTickerStore.hydrate();
 
-    try {
-      do {
-        const [next, batch] = await this.redis.scan(cursor, 'MATCH', `${prefix}*`, 'COUNT', 100);
-        cursor = next;
-        keys.push(...batch);
-      } while (cursor !== '0');
-    } catch (err) {
-      log.warn(`failed to scan for searched tickers (starting with none restored): ${err}`);
-      return;
-    }
-
-    for (const key of keys) {
-      const symbol = key.slice(prefix.length);
-      try {
-        const [raw, ttl] = await Promise.all([this.redis.get(key), this.redis.ttl(key)]);
-        if (!raw || ttl <= 0) continue;
-        // Forced rather than trusted from storage: everything under this
-        // Redis prefix is a searched ticker by construction, and a stored
-        // record written before this field existed must not silently read
-        // back as "not searched".
-        const spec = { ...(JSON.parse(raw) as AssetSpec), searched: true };
-        this.extra.set(symbol, { spec, expiresAt: Date.now() + ttl * 1000 });
-      } catch (err) {
-        log.warn(`skipping corrupt searched-ticker entry ${symbol}: ${err}`);
-      }
+    for (const row of rows) {
+      // Forced rather than trusted from storage: everything in this table is
+      // a searched ticker by construction, and a stored record written before
+      // this field existed must not silently read back as "not searched".
+      const spec = { ...row.spec, searched: true };
+      this.extra.set(row.symbol, { spec, expiresAt: row.expiresAt });
     }
 
     if (this.extra.size > 0) {
@@ -185,7 +165,7 @@ export class UniverseRegistry {
     }
   }
 
-  private sweep(): void {
+  private async sweep(): Promise<void> {
     const now = Date.now();
     let changed = false;
 
@@ -198,6 +178,12 @@ export class UniverseRegistry {
     }
 
     if (changed) this.rebuild();
+
+    try {
+      await this.searchedTickerStore.deleteExpired();
+    } catch (err) {
+      log.warn(`failed to prune expired searched tickers: ${err}`);
+    }
   }
 
   private rebuild(): void {

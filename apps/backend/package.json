@@ -18,8 +18,8 @@
     "cron-parser": "^5.1.0",
     "dotenv": "^16.0.0",
     "hono": "^4.7.4",
-    "ioredis": "^5.4.2",
     "node-cron": "^3.0.3",
+    "pg": "^8.13.1",
     "telegraf": "^4.16.3",
     "ulid": "^2.3.0",
     "winston": "^3.19.0",
@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.11.10",
     "ts-node-dev": "^2.0.0"
   }
 }

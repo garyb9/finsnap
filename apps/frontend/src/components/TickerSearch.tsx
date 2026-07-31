@@ -95,7 +95,8 @@ const Popover = styled.div<{ $tone: 'error' | 'success' }>`
   line-height: 1.45;
   color: ${({ $tone }) => ($tone === 'error' ? theme.colors.danger : theme.colors.success)};
   background: ${theme.colors.codeBackgroundSlate};
-  border: 1px solid ${({ $tone }) => ($tone === 'error' ? theme.colors.danger : theme.colors.success)};
+  border: 1px solid
+    ${({ $tone }) => ($tone === 'error' ? theme.colors.danger : theme.colors.success)};
   box-shadow: ${theme.colors.shadowSoft};
   backdrop-filter: blur(8px);
   z-index: 41;
@@ -132,9 +133,12 @@ export function TickerSearch() {
   const [status, setStatus] = useState<Status>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => {
-    if (dismissTimer.current) clearTimeout(dismissTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    },
+    []
+  );
 
   const flash = useCallback((next: Status, ms: number) => {
     if (dismissTimer.current) clearTimeout(dismissTimer.current);
@@ -158,7 +162,10 @@ export function TickerSearch() {
       }
 
       setValue('');
-      flash({ tone: 'success', message: `${result.label} added — tracking for 24h` }, SUCCESS_DISMISS_MS);
+      flash(
+        { tone: 'success', message: `${result.label} added — tracking for 24h` },
+        SUCCESS_DISMISS_MS
+      );
       void refresh();
     },
     [value, loading, refresh, flash]

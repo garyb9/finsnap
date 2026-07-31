@@ -46,6 +46,8 @@ export interface SyncStep {
   label: string;
   stage: SyncStage;
   fetches: FetchRecord[];
+  /** When this symbol's fetch began, so a client can show live elapsed time while it's still running */
+  startedAt: string | null;
   /** Wall-clock time on this symbol, once finished */
   ms: number | null;
   error?: string;

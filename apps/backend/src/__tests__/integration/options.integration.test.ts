@@ -5,24 +5,21 @@
  *   INTEGRATION=true yarn vitest run src/__tests__/integration/
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import type Redis from 'ioredis';
 import { fetchOptionsData } from '../../collectors/options';
 import { analyzeOptionsChain } from '../../analyzers/options';
+import type { OptionsStore } from '../../storage/optionsStore';
 
 const INTEGRATION = process.env.INTEGRATION === 'true';
 
-// Minimal Redis stub — no caching during integration tests
-const mockRedis = {
-  get: async () => null,
-  set: async () => 'OK' as const,
-} as unknown as Redis;
+// No-op archive store — these tests only care about the fetch/analysis path.
+const noopOptionsStore = { upsertSnapshot: async () => {} } as unknown as OptionsStore;
 
 describe.skipIf(!INTEGRATION)('options integration — Yahoo Finance fetch', () => {
   const TICKER = 'IBIT';
   let rawData: Awaited<ReturnType<typeof fetchOptionsData>>;
 
   beforeAll(async () => {
-    rawData = await fetchOptionsData(TICKER, mockRedis);
+    rawData = await fetchOptionsData(TICKER, noopOptionsStore);
   }, 60_000); // generous timeout for real HTTP
 
   it('fetches options data successfully', () => {
@@ -59,7 +56,7 @@ describe.skipIf(!INTEGRATION)('options integration — analysis calcs', () => {
   let rawData: Awaited<ReturnType<typeof fetchOptionsData>>;
 
   beforeAll(async () => {
-    rawData = await fetchOptionsData(TICKER, mockRedis);
+    rawData = await fetchOptionsData(TICKER, noopOptionsStore);
   }, 60_000);
 
   it('analyzeOptionsChain returns valid analysis shape', () => {
@@ -110,7 +107,7 @@ describe.skipIf(!INTEGRATION)('options integration — multiple tickers', () => 
 
   for (const ticker of TICKERS) {
     it(`fetches and analyses ${ticker}`, async () => {
-      const data = await fetchOptionsData(ticker, mockRedis);
+      const data = await fetchOptionsData(ticker, noopOptionsStore);
       expect(data).not.toBeNull();
       expect(data!.price).toBeGreaterThan(0);
       expect(data!.chains.length).toBeGreaterThan(0);

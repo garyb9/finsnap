@@ -2,10 +2,8 @@
  * The storage port.
  *
  * `SnapStore` and `ReportStore` are written against this interface rather than
- * against `ioredis` directly, so the backing store can change without touching
- * either of them. Today the only implementation is Redis. When reports move to
- * Postgres (Supabase), a second adapter satisfies this and the stores are
- * unchanged.
+ * against a specific backing store, so the backing store can change without
+ * touching either of them — `PostgresStorage` is the implementation.
  *
  * The surface is deliberately the smallest thing the two stores actually use —
  * six operations, all of which Postgres can express. Exposing the full Redis

@@ -1,8 +1,8 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../../../logger';
 import { wait } from '../../../lib/async';
 import { YAHOO_CALL_DELAY_MS } from '../../../constants';
 import { BarCollector } from '../../../collectors/bars';
+import type { BarsStore } from '../../../storage/barsStore';
 import { BarInterval, type BarSeries } from '../../../collectors/types';
 import { dropIncompleteBar } from '../../../backtest/runner';
 import {
@@ -25,11 +25,11 @@ const log = createLogger('web:correlation');
  * warmed every symbol's daily cache, this loop is back-to-back cache reads.
  */
 async function fetchDailyUniverse(
-  redis: Redis,
+  barsStore: BarsStore,
   symbols: string[]
 ): Promise<Map<string, BarSeries>> {
   let lastWasNetwork = false;
-  const collector = new BarCollector(redis, (event) => {
+  const collector = new BarCollector(barsStore, (event) => {
     lastWasNetwork = !event.cached;
   });
 
@@ -47,7 +47,7 @@ async function fetchDailyUniverse(
 }
 
 /** Cross-asset price correlation, built from the same daily bars the backtests run on. */
-export const registerCorrelationRoutes: RouteRegistrar = (app, { config, redis }) => {
+export const registerCorrelationRoutes: RouteRegistrar = (app, { config, barsStore }) => {
   app.get('/correlation', async (c) => {
     const requested = c.req.query('window') ?? DEFAULT_CORRELATION_WINDOW;
     const window =
@@ -56,7 +56,7 @@ export const registerCorrelationRoutes: RouteRegistrar = (app, { config, redis }
 
     try {
       const bars = await fetchDailyUniverse(
-        redis,
+        barsStore,
         config.universe.map((s) => s.symbol)
       );
 

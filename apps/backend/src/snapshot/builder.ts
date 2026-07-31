@@ -1,5 +1,4 @@
 import { ulid } from 'ulid';
-import type Redis from 'ioredis';
 import type { AssetSpec, Config } from '../config';
 import { createLogger } from '../logger';
 import { BarCollector } from '../collectors/bars';
@@ -8,6 +7,8 @@ import { fetchAssetSizes, type AssetSize } from '../collectors/quote';
 import { analyzeOptionsChain } from '../analyzers/options';
 import { analyzeAssetBars } from '../analyzers/price';
 import { analyzeTsmom } from '../analyzers/tsmom';
+import type { BarsStore } from '../storage/barsStore';
+import type { OptionsStore } from '../storage/optionsStore';
 import type { AssetSnap, FinSnap } from './types';
 
 const log = createLogger('builder');
@@ -25,9 +26,10 @@ export class SnapBuilder {
 
   constructor(
     private config: Config,
-    private redis: Redis
+    barsStore: BarsStore,
+    private optionsStore: OptionsStore
   ) {
-    this.bars = new BarCollector(redis);
+    this.bars = new BarCollector(barsStore);
   }
 
   async build(): Promise<FinSnap> {
@@ -37,10 +39,7 @@ export class SnapBuilder {
 
     // One batched request for the whole universe; cached for hours, so this is
     // a no-op on all but the first snap of the session.
-    const sizes = await fetchAssetSizes(
-      this.config.universe.map((s) => s.symbol),
-      this.redis
-    );
+    const sizes = await fetchAssetSizes(this.config.universe.map((s) => s.symbol));
 
     for (const spec of this.config.universe) {
       try {
@@ -104,7 +103,7 @@ export class SnapBuilder {
     };
 
     if (spec.hasOptions) {
-      const data = await fetchOptionsData(spec.symbol, this.redis);
+      const data = await fetchOptionsData(spec.symbol, this.optionsStore);
       if (data) {
         const chain = analyzeOptionsChain(data);
         snap.description = chain.description;

@@ -14,6 +14,13 @@ export const INTERVAL_MS: Record<BarInterval, number> = {
   [BarInterval.Daily]: DAY_MS,
 };
 
+/** How far back an incremental re-fetch reaches past the last stored bar, per interval. */
+export const BAR_SYNC_OVERLAP_MS: Record<BarInterval, number> = {
+  [BarInterval.FiveMinute]: 4 * HOUR_MS,
+  [BarInterval.Hourly]: DAY_MS,
+  [BarInterval.Daily]: 5 * DAY_MS,
+};
+
 /** Trading periods per year, for annualizing metrics. */
 export const PERIODS_PER_YEAR = {
   cryptoDaily: 365,

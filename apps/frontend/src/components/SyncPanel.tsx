@@ -3,6 +3,7 @@ import styled, { css } from 'styled-components';
 import { spin } from '../styles/keyframes';
 import { theme } from '../styles/theme';
 import { useSync } from '../lib/useSync';
+import { BarInterval } from '../types/enums';
 import { SyncPhase, SyncStage, SyncState, type SyncStep } from '../types/sync';
 
 const PHASE_LABEL: Record<SyncPhase, string> = {
@@ -10,6 +11,15 @@ const PHASE_LABEL: Record<SyncPhase, string> = {
   [SyncPhase.Snapshot]: 'Rebuilding snapshot',
   [SyncPhase.Report]: 'Running backtests',
   [SyncPhase.Done]: 'Done',
+};
+
+/** Fetch order matches the backend's `BarCollector` exactly — daily first, then hourly, then 5-minute. */
+const INTERVAL_ORDER = [BarInterval.Daily, BarInterval.Hourly, BarInterval.FiveMinute];
+
+const INTERVAL_LABEL: Record<BarInterval, string> = {
+  [BarInterval.Daily]: 'daily',
+  [BarInterval.Hourly]: 'hourly',
+  [BarInterval.FiveMinute]: '5-minute',
 };
 
 const STAGE_COLOR: Record<SyncStage, string> = {
@@ -44,7 +54,7 @@ function latencyColor(ms: number): string {
  * same baseline as the wordmark and tabs: half the header height, less half the
  * button's own height.
  */
-const TOGGLE_HEIGHT = 30;
+const TOGGLE_HEIGHT = 34;
 
 const Dock = styled.div`
   position: fixed;
@@ -61,7 +71,7 @@ const Dock = styled.div`
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
-  max-width: min(360px, calc(100vw - 32px));
+  max-width: min(400px, calc(100vw - 32px));
 
   @media (max-width: ${theme.breakpoints.md}) {
     right: 10px;
@@ -183,7 +193,7 @@ const Dot = styled.span<{ $color: string }>`
 `;
 
 const Panel = styled.div`
-  width: 340px;
+  width: 380px;
   max-width: 100%;
   border-radius: ${theme.radius.md};
   border: 1px solid ${theme.colors.borderSlateStrong};
@@ -245,17 +255,17 @@ const StepList = styled.ul`
   margin: 0;
   padding: 4px 0;
   list-style: none;
-  max-height: 240px;
+  max-height: 280px;
   overflow-y: auto;
 `;
 
 const StepRow = styled.li<{ $active: boolean; $pending: boolean }>`
   display: grid;
-  grid-template-columns: 7px 52px 1fr auto;
+  grid-template-columns: 7px 54px 1fr auto;
   gap: 8px;
   align-items: center;
-  padding: 4px 12px;
-  font-size: 0.68rem;
+  padding: 5px 12px;
+  font-size: 0.7rem;
   opacity: ${({ $pending }) => ($pending ? 0.4 : 1)};
 
   ${({ $active }) =>
@@ -278,6 +288,10 @@ const StepDetail = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`;
+
+const ElapsedSuffix = styled.span<{ $live: boolean }>`
+  color: ${({ $live }) => ($live ? theme.colors.accent : theme.colors.label)};
 `;
 
 const Latency = styled.span<{ $color: string }>`
@@ -305,20 +319,24 @@ const Failure = styled.div`
 
 // ---------- Sub-components ----------
 
-/**
- * `1d 1h 5m · 18,200 bars` — which intervals have landed and what they held.
- *
- * Listing the intervals as they arrive is what makes the row answer "what is it
- * fetching right now" rather than just "it is busy": a symbol showing `1d` has
- * two more requests to go.
- */
+/** `1d 1h · 12,004 bars · fetching 5-minute…` */
 function describeFetches(step: SyncStep): string {
-  if (step.stage === SyncStage.Options) return 'options chain…';
-  if (step.fetches.length === 0) return step.stage === SyncStage.Queued ? 'queued' : 'connecting…';
+  if (step.stage === SyncStage.Options) return 'fetching options chain…';
+  if (step.stage === SyncStage.Queued) return 'queued';
+
+  if (step.fetches.length === 0) {
+    return `fetching ${INTERVAL_LABEL[INTERVAL_ORDER[0]]}…`;
+  }
 
   const intervals = step.fetches.map((f) => f.interval).join(' ');
   const bars = step.fetches.reduce((sum, f) => sum + f.bars, 0);
-  return `${intervals} · ${bars.toLocaleString()} bars`;
+  const landed = `${intervals} · ${bars.toLocaleString()} bars`;
+
+  if (step.stage !== SyncStage.Bars) return landed; // done/empty/failed — nothing more coming
+
+  const landedSet = new Set(step.fetches.map((f) => f.interval));
+  const next = INTERVAL_ORDER.find((i) => !landedSet.has(i));
+  return next ? `${landed} · fetching ${INTERVAL_LABEL[next]}…` : landed;
 }
 
 /** Network time, which is what a slow sync is actually waiting on. */
@@ -328,7 +346,15 @@ function fetchMs(step: SyncStep): number | null {
   return live.reduce((sum, f) => sum + f.ms, 0);
 }
 
-function StepEntry({ step, active }: { step: SyncStep; active: boolean }) {
+/** Finished duration once done, or a live clock off `startedAt` while active. */
+function elapsedSeconds(step: SyncStep, active: boolean, now: number): string | null {
+  if (step.ms !== null) return (step.ms / 1000).toFixed(1);
+  if (active && step.startedAt)
+    return ((now - new Date(step.startedAt).getTime()) / 1000).toFixed(1);
+  return null;
+}
+
+function StepEntry({ step, active, now }: { step: SyncStep; active: boolean; now: number }) {
   const ms = fetchMs(step);
   const pending = step.stage === SyncStage.Queued;
   const allCached = step.fetches.length > 0 && ms === null;
@@ -340,11 +366,20 @@ function StepEntry({ step, active }: { step: SyncStep; active: boolean }) {
     if (active) row.current?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
+  const detail = step.error ?? describeFetches(step);
+  const elapsed = elapsedSeconds(step, active, now);
+  const finished = step.ms !== null;
+
   return (
     <StepRow ref={row} $active={active} $pending={pending}>
       <Dot $color={STAGE_COLOR[step.stage]} />
       <StepLabel>{step.label}</StepLabel>
-      <StepDetail title={step.error}>{step.error ?? describeFetches(step)}</StepDetail>
+      <StepDetail
+        title={`${detail}${elapsed ? ` (${elapsed}s${finished ? ' total' : ' so far'})` : ''}`}
+      >
+        {detail}
+        {elapsed && <ElapsedSuffix $live={!finished}> · {elapsed}s</ElapsedSuffix>}
+      </StepDetail>
       {ms !== null ? (
         <Latency $color={latencyColor(ms)}>{ms}ms</Latency>
       ) : allCached ? (
@@ -370,6 +405,7 @@ function StepEntry({ step, active }: { step: SyncStep; active: boolean }) {
 export function SyncPanel() {
   const { job, running, starting, trigger } = useSync();
   const [open, setOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const wasRunning = useRef(false);
 
   const busy = running || starting;
@@ -382,7 +418,14 @@ export function SyncPanel() {
     wasRunning.current = running;
   }, [running]);
 
-  const pct = job && job.total > 0 ? (job.completed / job.total) * 100 : 0;
+  // Ticks the active symbol's elapsed-time readout faster than the ~900ms poll.
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [running]);
+
+  const pct = job && job.total > 0 ? Math.round((job.completed / job.total) * 100) : 0;
   const elapsed = job ? (job.elapsedMs / 1000).toFixed(1) : '0.0';
   const phase = job?.phase ?? SyncPhase.Done;
 
@@ -396,10 +439,7 @@ export function SyncPanel() {
         title={busy ? PHASE_HINT[phase] : 'Open sync'}
       >
         <Refresh busy={busy} />
-        {/* A bare counter while running, not "Syncing 12/23": the label sits
-            next to the live-status readout, and a button that changes width
-            mid-run would shove it around. */}
-        {busy && job ? `${job.completed}/${job.total}` : 'Sync'}
+        {busy && job ? `${pct}%` : 'Sync'}
       </Toggle>
 
       {open && (
@@ -409,7 +449,7 @@ export function SyncPanel() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {hasJob && (
                 <Counter>
-                  {job!.completed}/{job!.total}
+                  {job!.completed}/{job!.total} · {pct}%
                 </Counter>
               )}
               <CloseButton type="button" onClick={() => setOpen(false)} aria-label="Close">
@@ -425,7 +465,12 @@ export function SyncPanel() {
           {hasJob && (
             <StepList>
               {job!.steps.map((step) => (
-                <StepEntry key={step.symbol} step={step} active={job!.current === step.symbol} />
+                <StepEntry
+                  key={step.symbol}
+                  step={step}
+                  active={job!.current === step.symbol}
+                  now={now}
+                />
               ))}
             </StepList>
           )}

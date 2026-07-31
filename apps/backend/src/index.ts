@@ -1,7 +1,14 @@
 import 'dotenv/config';
 import { loadConfig } from './config';
-import { getRedis, disconnectRedis } from './redis';
-import { RedisStorage, ReportStore, SnapStore } from './storage';
+import { getDb, disconnectDb, runMigrations } from './db';
+import {
+  PostgresStorage,
+  ReportStore,
+  SnapStore,
+  BarsStore,
+  OptionsStore,
+  SearchedTickerStore,
+} from './storage';
 import { SnapBuilder } from './snapshot/builder';
 import { ReportBuilder } from './report/builder';
 import { SnapScheduler } from './scheduler/cron';
@@ -49,13 +56,17 @@ async function backfillIfStale(
 
 async function main() {
   const config = loadConfig();
-  const redis = getRedis(config.redisUrl);
+  const pool = getDb(config.databaseUrl);
+  await runMigrations(pool);
 
-  // The one place the backing store is chosen. Swapping in a Postgres adapter
-  // later is a change here and nowhere else.
-  const storage = new RedisStorage(redis);
+  // The one place the backing stores are chosen. Swapping any of them later is
+  // a change here and nowhere else.
+  const storage = new PostgresStorage(pool);
   const snapStore = new SnapStore(storage);
   const reportStore = new ReportStore(storage);
+  const barsStore = new BarsStore(pool);
+  const optionsStore = new OptionsStore(pool);
+  const searchedTickerStore = new SearchedTickerStore(pool);
 
   // A single Telegram instance — two would mean two bots polling the same token.
   // Inert when no token is configured; nothing else changes.
@@ -63,20 +74,29 @@ async function main() {
 
   const scheduler = new SnapScheduler(
     config,
-    new SnapBuilder(config, redis),
-    new ReportBuilder(config, redis),
+    new SnapBuilder(config, barsStore, optionsStore),
+    new ReportBuilder(config, barsStore, optionsStore),
     snapStore,
     reportStore,
     telegram
   );
 
-  const sync = new SyncRunner(config, redis, scheduler);
-  const universe = new UniverseRegistry(config, redis);
-  const web = new WebOutput({ config, snapStore, reportStore, scheduler, sync, universe, telegram, redis });
+  const sync = new SyncRunner(config, barsStore, optionsStore, scheduler);
+  const universe = new UniverseRegistry(config, searchedTickerStore, barsStore);
+  const web = new WebOutput({
+    config,
+    snapStore,
+    reportStore,
+    scheduler,
+    sync,
+    universe,
+    telegram,
+    barsStore,
+  });
 
   // Restores any searches that survived a restart, widening config.universe
-  // before anything reads it. Quick — a Redis SCAN over a handful of keys —
-  // so it runs before serving rather than in the background.
+  // before anything reads it. Quick — a handful of rows — so it runs before
+  // serving rather than in the background.
   await universe.start();
 
   logger.info(
@@ -101,7 +121,7 @@ async function main() {
     logger.info('shutting down...');
     scheduler.stop();
     universe.stop();
-    await disconnectRedis();
+    await disconnectDb();
     process.exit(0);
   }
 

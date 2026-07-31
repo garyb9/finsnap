@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type Redis from 'ioredis';
-import { AssetClass, AssetCategory, type Config } from '../config';
+import { AssetClass, AssetCategory, type AssetSpec, type Config } from '../config';
 import { BarInterval } from '../constants/enums';
+import type { SearchedTickerStore } from '../storage/searchedTickerStore';
+import type { BarsStore } from '../storage/barsStore';
 
 const fetchSeries = vi.fn();
 
@@ -28,29 +29,30 @@ function makeConfig(): Config {
   } as Config;
 }
 
-/** Minimal Redis double — just what the registry touches. */
-function makeRedis() {
-  const store = new Map<string, { value: string; expiresAt: number }>();
+/** Minimal in-memory double for the searched-ticker registry's Postgres store. */
+function makeSearchedTickerStore(): SearchedTickerStore {
+  const store = new Map<string, { spec: AssetSpec; expiresAt: number }>();
 
   return {
-    async set(key: string, value: string, _flag: string, ttl: number) {
-      store.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
-      return 'OK';
+    async upsert(symbol: string, spec: AssetSpec, expiresAt: number) {
+      store.set(symbol, { spec, expiresAt });
     },
-    async get(key: string) {
-      const entry = store.get(key);
-      return entry ? entry.value : null;
+    async hydrate() {
+      return Array.from(store.entries())
+        .filter(([, v]) => v.expiresAt > Date.now())
+        .map(([symbol, v]) => ({ symbol, spec: v.spec, expiresAt: v.expiresAt }));
     },
-    async ttl(key: string) {
-      const entry = store.get(key);
-      if (!entry) return -2;
-      return Math.round((entry.expiresAt - Date.now()) / 1000);
+    async deleteExpired() {
+      for (const [symbol, v] of store) {
+        if (v.expiresAt <= Date.now()) store.delete(symbol);
+      }
     },
-    async scan(cursor: string, _match: string, _pattern: string, _count: string, _n: number) {
-      return cursor === '0' ? ['0', Array.from(store.keys())] : ['0', []];
-    },
-    __store: store,
-  } as unknown as Redis & { __store: typeof store };
+  } as unknown as SearchedTickerStore;
+}
+
+/** BarCollector is mocked above, so this never gets touched — a stand-in satisfies the constructor. */
+function makeBarsStore(): BarsStore {
+  return {} as unknown as BarsStore;
 }
 
 describe('UniverseRegistry', () => {
@@ -59,14 +61,14 @@ describe('UniverseRegistry', () => {
   });
 
   it('rejects an empty or malformed symbol without touching the network', async () => {
-    const registry = new UniverseRegistry(makeConfig(), makeRedis());
+    const registry = new UniverseRegistry(makeConfig(), makeSearchedTickerStore(), makeBarsStore());
     await expect(registry.search('')).rejects.toThrow(InvalidTickerError);
     await expect(registry.search('not a ticker!')).rejects.toThrow(InvalidTickerError);
     expect(fetchSeries).not.toHaveBeenCalled();
   });
 
   it('returns the existing spec for a symbol already in the base universe, with no expiry', async () => {
-    const registry = new UniverseRegistry(makeConfig(), makeRedis());
+    const registry = new UniverseRegistry(makeConfig(), makeSearchedTickerStore(), makeBarsStore());
     const { spec, expiresAt } = await registry.search('spy');
 
     expect(spec.symbol).toBe('SPY');
@@ -76,7 +78,7 @@ describe('UniverseRegistry', () => {
 
   it('rejects a symbol Yahoo has no bars for', async () => {
     fetchSeries.mockResolvedValue(null);
-    const registry = new UniverseRegistry(makeConfig(), makeRedis());
+    const registry = new UniverseRegistry(makeConfig(), makeSearchedTickerStore(), makeBarsStore());
 
     await expect(registry.search('BOGUS')).rejects.toThrow(TickerNotFoundError);
   });
@@ -89,7 +91,7 @@ describe('UniverseRegistry', () => {
       fetchedAt: Date.now(),
     });
     const config = makeConfig();
-    const registry = new UniverseRegistry(config, makeRedis());
+    const registry = new UniverseRegistry(config, makeSearchedTickerStore(), makeBarsStore());
 
     const { spec, expiresAt } = await registry.search('nvda');
 
@@ -107,7 +109,7 @@ describe('UniverseRegistry', () => {
       fetchedAt: Date.now(),
     });
     const config = makeConfig();
-    const registry = new UniverseRegistry(config, makeRedis());
+    const registry = new UniverseRegistry(config, makeSearchedTickerStore(), makeBarsStore());
 
     const { spec } = await registry.search('ETH-USD');
 
@@ -116,21 +118,21 @@ describe('UniverseRegistry', () => {
     expect(spec.label).toBe('ETH');
   });
 
-  it('restores a searched ticker from Redis on hydrate, before it expires', async () => {
+  it('restores a searched ticker from storage on hydrate, before it expires', async () => {
     fetchSeries.mockResolvedValue({
       symbol: 'NVDA',
       interval: BarInterval.Daily,
       bars: [{ time: 0, open: 1, high: 1, low: 1, close: 1, volume: 1 }],
       fetchedAt: Date.now(),
     });
-    const redis = makeRedis();
+    const searchedTickerStore = makeSearchedTickerStore();
     const config = makeConfig();
-    const first = new UniverseRegistry(config, redis);
+    const first = new UniverseRegistry(config, searchedTickerStore, makeBarsStore());
     await first.search('NVDA');
 
-    // A fresh process, same Redis and a fresh base config.
+    // A fresh process, same store and a fresh base config.
     const restarted = makeConfig();
-    const second = new UniverseRegistry(restarted, redis);
+    const second = new UniverseRegistry(restarted, searchedTickerStore, makeBarsStore());
     await second.start();
     second.stop();
 

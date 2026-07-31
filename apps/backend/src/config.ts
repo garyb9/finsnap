@@ -6,9 +6,10 @@ import { PERIODS_PER_YEAR } from './constants/time';
 export { AssetCategory, AssetClass, TelegramMode };
 
 const configSchema = z.object({
-  // Redis. The default serves `yarn dev` on the host; docker-compose overrides
-  // it with the service hostname, which only resolves inside its network.
-  redisUrl: z.string().default('redis://localhost:6379'),
+  // Postgres. The default serves `yarn dev` on the host; docker-compose
+  // overrides it with the service hostname, which only resolves inside its
+  // network.
+  databaseUrl: z.string().default('postgres://postgres:postgres@localhost:5432/finsnap'),
 
   /**
    * Telegram — entirely optional.
@@ -65,7 +66,10 @@ const configSchema = z.object({
   backtestSlippageBps: z.coerce.number().min(0).default(5),
 
   // Schedulers
-  snapCron: z.string().default('*/10 * * * *'),
+  /** Live snapshot — hourly is enough now that bars sync incrementally: each
+   * run just picks up current price plus whatever bars are missing, rather
+   * than re-fetching full history. */
+  snapCron: z.string().default('0 * * * *'),
   /** Daily backtest report — 08:00 America/New_York, 90 min before the open */
   reportCron: z.string().default('0 8 * * 1-5'),
   reportTimezone: z.string().default('America/New_York'),
@@ -149,7 +153,7 @@ export function buildAssetSpec(
 
 export function loadConfig(): Config {
   const result = configSchema.safeParse({
-    redisUrl: process.env.REDIS_URL,
+    databaseUrl: process.env.DATABASE_URL,
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChannelId: process.env.TELEGRAM_CHANNEL_ID,
     telegramMode: process.env.TELEGRAM_MODE,

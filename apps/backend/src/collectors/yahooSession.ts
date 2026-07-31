@@ -1,12 +1,11 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
 import {
-  REDIS_KEYS,
   YAHOO_COOKIE_URL,
   YAHOO_CRUMB_TTL_SECONDS,
   YAHOO_CRUMB_URL,
   YAHOO_USER_AGENT,
 } from '../constants';
+import { MemoCache } from '../lib/memoCache';
 
 const log = createLogger('yahoo-session');
 
@@ -15,6 +14,9 @@ export interface YahooSession {
   crumb: string;
   fetchedAt: number;
 }
+
+const cache = new MemoCache<YahooSession>();
+const CACHE_KEY = 'session';
 
 /** Node 18+ exposes getSetCookie(); fall back to the single-header form. */
 function readCookies(response: Response): string {
@@ -30,29 +32,12 @@ function readCookies(response: Response): string {
     .join('; ');
 }
 
-async function readCached(redis: Redis): Promise<YahooSession | null> {
-  try {
-    const cached = await redis.get(REDIS_KEYS.yahooCrumb);
-    return cached ? (JSON.parse(cached) as YahooSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function writeCache(redis: Redis, session: YahooSession): Promise<void> {
-  try {
-    await redis.set(REDIS_KEYS.yahooCrumb, JSON.stringify(session), 'EX', YAHOO_CRUMB_TTL_SECONDS);
-  } catch {
-    /* a cache miss next time is not worth failing the fetch over */
-  }
-}
-
 /**
  * Fetch + cache a Yahoo Finance session (consent cookie + crumb), valid ~24h.
  * Shared by the options-chain and bar collectors so only one handshake is paid.
  */
-export async function getYahooSession(redis: Redis): Promise<YahooSession | null> {
-  const cached = await readCached(redis);
+export async function getYahooSession(): Promise<YahooSession | null> {
+  const cached = cache.get(CACHE_KEY);
   if (cached) return cached;
 
   try {
@@ -78,7 +63,7 @@ export async function getYahooSession(redis: Redis): Promise<YahooSession | null
     }
 
     const session: YahooSession = { cookie, crumb, fetchedAt: Date.now() };
-    await writeCache(redis, session);
+    cache.set(CACHE_KEY, session, YAHOO_CRUMB_TTL_SECONDS);
 
     log.info(`session acquired (crumb: ${crumb.slice(0, 6)}...)`);
     return session;

@@ -1,7 +1,7 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
 import { backoffMs, wait } from '../lib/async';
-import { BAR_CACHE_TTL_SECONDS, REDIS_KEYS } from '../constants';
+import { MemoCache } from '../lib/memoCache';
+import { BAR_SYNC_THROTTLE_SECONDS } from '../constants';
 import { BarInterval, type Bar, type BarSeries } from './types';
 
 const log = createLogger('binance');
@@ -19,6 +19,12 @@ const INTERVAL_MAP: Record<BarInterval, string> = {
   [BarInterval.Daily]: '1d',
 };
 
+const cache = new MemoCache<BarSeries>();
+
+function cacheKey(symbol: string, interval: BarInterval): string {
+  return `${symbol.toUpperCase()}:${interval}`;
+}
+
 /**
  * Map a FinSnap crypto symbol to its Binance spot pair.
  *
@@ -31,15 +37,6 @@ export function toBinanceSymbol(symbol: string): string | null {
   const match = /^([A-Z0-9]+)-USD$/i.exec(symbol.trim());
   if (!match) return null;
   return `${match[1].toUpperCase()}USDT`;
-}
-
-function cacheKey(symbol: string, interval: BarInterval): string {
-  return `${REDIS_KEYS.bars}:binance:${symbol.toUpperCase()}:${interval}`;
-}
-
-function isFresh(series: BarSeries): boolean {
-  const ageMs = Date.now() - series.fetchedAt;
-  return ageMs < BAR_CACHE_TTL_SECONDS[series.interval] * 1000;
 }
 
 type KlineRow = [
@@ -131,8 +128,8 @@ async function fetchAllKlines(pair: string, interval: BarInterval): Promise<Bar[
 }
 
 /**
- * Fetch OHLCV bars for a crypto pair straight from the exchange, with a Redis
- * cache matching the Yahoo bar collector's freshness policy.
+ * Fetch OHLCV bars for a crypto pair straight from the exchange, with an
+ * in-process cache matching the Yahoo bar collector's check cadence.
  *
  * This is an independent read on the same asset Yahoo serves via `BTC-USD`:
  * exchange-native, no session handshake, no rate-limit dance — useful as a
@@ -140,40 +137,22 @@ async function fetchAllKlines(pair: string, interval: BarInterval): Promise<Bar[
  */
 export async function fetchBinanceSeries(
   symbol: string,
-  interval: BarInterval,
-  redis: Redis
+  interval: BarInterval
 ): Promise<BarSeries | null> {
   const pair = toBinanceSymbol(symbol);
   if (!pair) return null;
 
-  try {
-    const raw = await redis.get(cacheKey(symbol, interval));
-    if (raw) {
-      const cached = JSON.parse(raw) as BarSeries;
-      if (isFresh(cached)) {
-        log.info(`${symbol} ${interval}: cached (${cached.bars.length} bars)`);
-        return cached;
-      }
-    }
-  } catch (err) {
-    log.warn(`cache read failed for ${symbol} ${interval}: ${err}`);
+  const cached = cache.get(cacheKey(symbol, interval));
+  if (cached) {
+    log.info(`${symbol} ${interval}: cached (${cached.bars.length} bars)`);
+    return cached;
   }
 
   const bars = await fetchAllKlines(pair, interval);
   if (!bars || bars.length === 0) return null;
 
   const series: BarSeries = { symbol, interval, bars, fetchedAt: Date.now() };
-
-  try {
-    await redis.set(
-      cacheKey(symbol, interval),
-      JSON.stringify(series),
-      'EX',
-      BAR_CACHE_TTL_SECONDS[interval]
-    );
-  } catch (err) {
-    log.warn(`cache write failed for ${symbol} ${interval}: ${err}`);
-  }
+  cache.set(cacheKey(symbol, interval), series, BAR_SYNC_THROTTLE_SECONDS[interval]);
 
   log.info(`${symbol} ${interval}: parsed ${bars.length} bars from Binance (${pair})`);
   return series;

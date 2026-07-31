@@ -1,8 +1,8 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
-import { QUOTE_CACHE_TTL_SECONDS, REDIS_KEYS, YAHOO_QUOTE_BASE } from '../constants';
+import { QUOTE_CACHE_TTL_SECONDS, YAHOO_QUOTE_BASE } from '../constants';
 import { SizeKind } from '../constants/enums';
 import { getYahooSession, withSession } from './yahooSession';
+import { MemoCache } from '../lib/memoCache';
 
 const log = createLogger('quote');
 
@@ -27,6 +27,9 @@ interface QuoteRow {
   netAssets?: number;
 }
 
+const cache = new MemoCache<Record<string, AssetSize>>();
+const CACHE_KEY = 'sizes';
+
 function readSize(row: QuoteRow): AssetSize | null {
   // Market cap first: for anything that has one it is the more meaningful
   // figure, and only funds fall through to net assets.
@@ -39,15 +42,6 @@ function readSize(row: QuoteRow): AssetSize | null {
   return null;
 }
 
-async function readCache(redis: Redis): Promise<Record<string, AssetSize> | null> {
-  try {
-    const raw = await redis.get(REDIS_KEYS.quoteSizes);
-    return raw ? (JSON.parse(raw) as Record<string, AssetSize>) : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Fetch the size of every symbol in one request.
  *
@@ -58,17 +52,14 @@ async function readCache(redis: Redis): Promise<Record<string, AssetSize> | null
  * Returns an empty map on any failure. Size is decoration on the report — it
  * must never be the reason an asset is missing from it.
  */
-export async function fetchAssetSizes(
-  symbols: string[],
-  redis: Redis
-): Promise<Map<string, AssetSize>> {
+export async function fetchAssetSizes(symbols: string[]): Promise<Map<string, AssetSize>> {
   if (symbols.length === 0) return new Map();
 
-  const cached = await readCache(redis);
+  const cached = cache.get(CACHE_KEY);
   if (cached) return new Map(Object.entries(cached));
 
   try {
-    const session = await getYahooSession(redis);
+    const session = await getYahooSession();
     const query = symbols.map((s) => encodeURIComponent(s)).join(',');
     const { url, headers } = withSession(`${YAHOO_QUOTE_BASE}?symbols=${query}`, session);
 
@@ -89,16 +80,7 @@ export async function fetchAssetSizes(
     }
 
     if (sizes.size > 0) {
-      await redis
-        .set(
-          REDIS_KEYS.quoteSizes,
-          JSON.stringify(Object.fromEntries(sizes)),
-          'EX',
-          QUOTE_CACHE_TTL_SECONDS
-        )
-        .catch(() => {
-          /* a cache miss next time is not worth failing over */
-        });
+      cache.set(CACHE_KEY, Object.fromEntries(sizes), QUOTE_CACHE_TTL_SECONDS);
     }
 
     log.info(`sizes resolved for ${sizes.size}/${symbols.length} symbols`);

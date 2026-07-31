@@ -10,9 +10,9 @@
   ],
   "scripts": {
     "dev": "turbo run dev --parallel",
-    "redis": "docker compose up -d redis",
-    "redis:stop": "docker compose stop redis",
-    "dev:local": "yarn redis && yarn dev",
+    "db": "docker compose up -d postgres",
+    "db:stop": "docker compose stop postgres",
+    "dev:local": "yarn db && yarn dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint -- --fix",

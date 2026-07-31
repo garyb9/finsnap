@@ -11,10 +11,10 @@ services:
       - path: apps/backend/.env
         required: false
     environment:
-      # Set here, not in .env: inside the compose network Redis is always
-      # reachable as `redis`, and a .env copied from a local run would point at
-      # localhost and fail. Everything else still comes from .env.
-      REDIS_URL: redis://redis:6379
+      # Set here, not in .env: inside the compose network Postgres is always
+      # reachable as `postgres`, and a .env copied from a local run would point
+      # at localhost and fail. Everything else still comes from .env.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/finsnap
     ports:
       - '4000:4000'
     restart: unless-stopped
@@ -25,7 +25,7 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
-      redis:
+      postgres:
         condition: service_healthy
 
   frontend:
@@ -47,38 +47,23 @@ services:
       - /app/node_modules
       - /app/apps/frontend/.next
 
-  # ── PostgreSQL (optional) ────────────────────────────────────────────────────
-  # db:
-  #   image: postgres:16-alpine
-  #   container_name: monorepo-db
-  #   environment:
-  #     POSTGRES_DB: myapp
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres
-  #   ports:
-  #     - '5432:5432'
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ['CMD-SHELL', 'pg_isready -U postgres']
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: finsnap-redis
+  postgres:
+    image: postgres:16-alpine
+    container_name: finsnap-postgres
+    environment:
+      POSTGRES_DB: finsnap
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
-      - '6379:6379'
+      - '5432:5432'
     volumes:
-      - redis_data:/data
-    restart: unless-stopped
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 volumes:
-  redis_data:
+  postgres_data:

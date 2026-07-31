@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { packSeries, unpackSeries, parseChart } from '../collectors/bars';
+import { parseChart } from '../collectors/bars';
 import { BarInterval } from '../collectors/types';
 import { resampleCalendar, resampleFixed } from '../analyzers/resample';
-import { barsFromCloses, risingCloses, toSeries, T0 } from './helpers/bars';
+import { barsFromCloses, risingCloses, T0 } from './helpers/bars';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -33,30 +33,6 @@ function makeChart(options: {
     },
   };
 }
-
-describe('packSeries / unpackSeries', () => {
-  it('round-trips a series without loss', () => {
-    const series = toSeries(barsFromCloses(risingCloses(50)));
-    const restored = unpackSeries(packSeries(series));
-
-    expect(restored.symbol).toBe(series.symbol);
-    expect(restored.interval).toBe(series.interval);
-    expect(restored.bars).toEqual(series.bars);
-  });
-
-  it('serializes smaller than the object form', () => {
-    const series = toSeries(barsFromCloses(risingCloses(500)));
-    const packed = JSON.stringify(packSeries(series)).length;
-    const raw = JSON.stringify(series).length;
-
-    expect(packed).toBeLessThan(raw);
-  });
-
-  it('handles an empty series', () => {
-    const series = toSeries([]);
-    expect(unpackSeries(packSeries(series)).bars).toEqual([]);
-  });
-});
 
 describe('parseChart', () => {
   const timestamps = [1_600_000_000, 1_600_086_400, 1_600_172_800];

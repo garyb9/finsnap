@@ -1,6 +1,5 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
-import { REDIS_KEYS } from '../constants';
+import { MemoCache } from '../lib/memoCache';
 
 const log = createLogger('coingecko');
 
@@ -36,9 +35,7 @@ export interface CoinGeckoSeries {
   fetchedAt: number;
 }
 
-function cacheKey(symbol: string): string {
-  return `${REDIS_KEYS.bars}:coingecko:${symbol.toUpperCase()}`;
-}
+const cache = new MemoCache<CoinGeckoSeries>();
 
 /**
  * Fetch a coarse, aggregated-across-exchanges OHLC series for a crypto symbol.
@@ -50,24 +47,14 @@ function cacheKey(symbol: string): string {
  * one-year lookback cap on the keyless tier, so use it for sanity-checking
  * price/trend direction, not for running the backtest itself.
  */
-export async function fetchCoinGeckoSeries(
-  symbol: string,
-  redis: Redis
-): Promise<CoinGeckoSeries | null> {
+export async function fetchCoinGeckoSeries(symbol: string): Promise<CoinGeckoSeries | null> {
   const coinId = SYMBOL_TO_COINGECKO_ID[symbol.toUpperCase()];
   if (!coinId) return null;
 
-  try {
-    const raw = await redis.get(cacheKey(symbol));
-    if (raw) {
-      const cached = JSON.parse(raw) as CoinGeckoSeries;
-      if (Date.now() - cached.fetchedAt < CACHE_TTL_SECONDS * 1000) {
-        log.info(`${symbol}: cached (${cached.points.length} points)`);
-        return cached;
-      }
-    }
-  } catch (err) {
-    log.warn(`cache read failed for ${symbol}: ${err}`);
+  const cached = cache.get(symbol.toUpperCase());
+  if (cached) {
+    log.info(`${symbol}: cached (${cached.points.length} points)`);
+    return cached;
   }
 
   let response: Response;
@@ -105,11 +92,7 @@ export async function fetchCoinGeckoSeries(
     fetchedAt: Date.now(),
   };
 
-  try {
-    await redis.set(cacheKey(symbol), JSON.stringify(series), 'EX', CACHE_TTL_SECONDS);
-  } catch (err) {
-    log.warn(`cache write failed for ${symbol}: ${err}`);
-  }
+  cache.set(symbol.toUpperCase(), series, CACHE_TTL_SECONDS);
 
   log.info(
     `${symbol}: parsed ${points.length} points from CoinGecko (~${series.approxCandleWidthDays}d candles)`

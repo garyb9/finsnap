@@ -230,7 +230,7 @@ worth guarding: shipping a ticker to the guide page with nothing next to it.
 
 ```text
 [Collectors]                    Yahoo Finance — OHLCV bars (1d / 1h / 5m) + options chains
-       |                        Redis-cached, columnar packing
+       |                        Postgres-backed, incremental sync
        v
 [Backtest]                      indicators -> strategies -> engine -> metrics -> windows
        |                        next-bar-open execution, per-window benchmark
@@ -262,10 +262,10 @@ finsnap/
 │   │       ├── output/
 │   │       │   ├── web/routes/   root · health · snap · report · strategies · guide · sync
 │   │       │   └── telegram/     commands · formatSnap
-│   │       ├── storage/          types (port) · redisStore · stores
+│   │       ├── storage/          types (port) · postgresStorage · barsStore · optionsStore · stores
 │   │       └── scheduler/        cron (snap + report)
 │   └── frontend/                 Next.js — dashboard · technicals · options · guide
-└── docker-compose.yml            backend + frontend + Redis
+└── docker-compose.yml            backend + frontend + Postgres
 ```
 
 ## API
@@ -410,22 +410,23 @@ docker compose up --build
 ```
 
 That is the whole setup. **No `.env` is required** — Telegram and `API_TOKEN` are
-optional, and Compose supplies the Redis URL itself. Copy `apps/backend/.env.example`
+optional, and Compose supplies the database URL itself. Copy `apps/backend/.env.example`
 to `apps/backend/.env` only when you want to change something.
 
 ### Running on the host instead
 
-`yarn dev` needs a Redis it can reach on `localhost`, which the Compose service provides:
+`yarn dev` needs a Postgres it can reach on `localhost`, which the Compose service provides:
 
 ```bash
-yarn dev:local     # starts Redis in Docker, then runs both apps
+yarn dev:local     # starts Postgres in Docker, then runs both apps
 ```
 
-Or in two steps — `yarn redis` then `yarn dev`. Stop it with `yarn redis:stop`.
+Or in two steps — `yarn db` then `yarn dev`. Stop it with `yarn db:stop`.
 
-The `REDIS_URL` default is `redis://localhost:6379` for exactly this case;
-docker-compose overrides it with `redis://redis:6379`, which only resolves inside its
-own network.
+The `DATABASE_URL` default is `postgres://postgres:postgres@localhost:5432/finsnap` for
+exactly this case; docker-compose overrides it with
+`postgres://postgres:postgres@postgres:5432/finsnap`, which only resolves inside its own
+network.
 
 - **API**: `http://localhost:4000`
 - **Dashboard**: `http://localhost:3000`
@@ -436,7 +437,7 @@ answers immediately while data is still arriving.
 ### Without Docker
 
 ```bash
-# Requires a running Redis
+# Requires a running Postgres
 yarn workspace @monorepo/backend dev
 yarn workspace @monorepo/frontend dev
 ```
@@ -454,7 +455,7 @@ yarn test
 | Variable                  | Default                                | Description                                          |
 | ------------------------- | -------------------------------------- | ---------------------------------------------------- |
 | `APP_PORT`                | `4000`                                 | API server port                                      |
-| `REDIS_URL`               | `redis://redis:6379`                   | Redis connection URL                                 |
+| `DATABASE_URL`            | `postgres://postgres:postgres@postgres:5432/finsnap` | Postgres connection URL                 |
 | `TELEGRAM_BOT_TOKEN`      | —                                      | Bot token. **Optional** — blank disables delivery    |
 | `TELEGRAM_CHANNEL_ID`     | —                                      | Channel to publish to. Optional, same as above       |
 | `TELEGRAM_MODE`           | `polling`                              | `polling` \| `webhook` \| `off`                      |
@@ -467,7 +468,7 @@ yarn test
 | `BACKTEST_CAPITAL`        | `10000`                                | Starting capital per backtest                        |
 | `BACKTEST_FEE_BPS`        | `5`                                    | Fee per fill, basis points                           |
 | `BACKTEST_SLIPPAGE_BPS`   | `5`                                    | Slippage per fill, basis points                      |
-| `SNAP_CRON`               | `*/10 * * * *`                         | Live snapshot schedule                               |
+| `SNAP_CRON`               | `0 * * * *`                            | Live snapshot schedule                               |
 | `REPORT_CRON`             | `0 8 * * 1-5`                          | Daily report schedule                                |
 | `REPORT_TIMEZONE`         | `America/New_York`                     | Timezone the report cron resolves in                 |
 | `LOG_LEVEL`               | `info`                                 | Winston log level                                    |
@@ -497,25 +498,29 @@ two and a half minutes and exits. That shape does not need an always-on server:
 | Piece             | Target               | Status                                             |
 | ----------------- | -------------------- | -------------------------------------------------- |
 | Frontend          | Vercel               | CI job stubbed in `.github/workflows/frontend.yml` |
-| Database          | Supabase (Postgres)  | Storage port exists; no adapter, no migrations     |
+| Database          | Supabase (Postgres)  | Adapter + migrations in place — bars, options archive, snap/report storage, searched tickers |
 | Pre-market report | Scheduled runner     | Undecided — see below                              |
 | Live snaps + bot  | Long-lived container | Only works with a persistent process               |
 
-**Supabase cannot host the backend as written.** It is Postgres plus Deno Edge Functions,
-not a Node app host. `ioredis` will not run there, `node-cron` becomes `pg_cron`, and the
-report build is right at the function time limit. Supabase's real role here is the
-database — which is also an upgrade, since Redis lists cannot answer "every Friday XLE
-flipped to ENTER" and Postgres can.
+**Supabase hosts the database only, not the backend.** It is Postgres plus Deno Edge
+Functions, not a Node app host, and `node-cron` becomes `pg_cron` there. The backend
+itself runs as one persistent Node container (Railway — see `docs/hosting.md`) with a
+direct `pg` connection to Supabase's Postgres; there is no separate cache service to run
+alongside it, since durable state lives in Postgres and short-TTL caches live in the
+backend's own process memory.
 
 The open question is where the scheduled job runs. GitHub Actions is free with a six-hour
 limit and fits the pre-market batch exactly. A small Fly/Railway container is the
-zero-rewrite option and is the only one that keeps 10-minute snaps and the interactive
-Telegram bot working as they do today.
+zero-rewrite option and is the only one that keeps the hourly snap cron and the
+interactive Telegram bot working as they do today.
 
 ### What is already prepared
 
-- **Storage port** (`storage/types.ts`) — six operations Postgres can express. The stores
-  are written against it, so a Supabase adapter is a new file rather than a rewrite.
+- **Storage port** (`storage/types.ts`) — six operations Postgres can express. The
+  snap/report stores are written against it; `PostgresStorage` is the (only) adapter.
+- **Postgres adapter + migrations** for bars (incremental sync, per-interval retention),
+  the options-chain daily archive (30-day retention), snap/report storage, and the
+  searched-ticker registry — all four run through the same small migration runner.
 - **Telegram is optional and has a webhook mode** — a missing token no longer stops the
   service, and serverless has a path that does not require polling.
 - **Optional bearer auth** on the endpoints that start work, so a public URL is not an
@@ -525,7 +530,6 @@ Telegram bot working as they do today.
 
 ### Still missing
 
-- No migrations and no Postgres adapter.
 - The sync progress tracker is in-memory and single-instance — meaningless once there is
   more than one instance, or none.
 - The frontend fetches on the client, so a hosted page is blank until JS boots. Moving to
@@ -540,7 +544,7 @@ Telegram bot working as they do today.
 - **Runtime**: Node.js 22, TypeScript
 - **API**: Hono
 - **Data**: Yahoo Finance (bars + options chains)
-- **Storage**: Redis
+- **Storage**: Postgres
 - **Scheduler**: node-cron
 - **Telegram**: Telegraf
 - **Frontend**: Next.js 15, styled-components
@@ -550,4 +554,4 @@ Telegram bot working as they do today.
 
 - Node >= 22.0.0
 - Yarn >= 1.22.0
-- Docker + Docker Compose (for Redis + full stack)
+- Docker + Docker Compose (for Postgres + full stack)

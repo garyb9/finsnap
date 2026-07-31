@@ -42,7 +42,7 @@ per-request assembly of state that could have been assembled once, ahead of time
 ## Why FinSnap's shape avoids both, structurally
 
 - **No second runtime is needed.** FinSnap already requires a long-lived Node process —
-  the 10-minute live-snapshot cron and Telegram polling both need one (see the README's
+  the hourly live-snapshot cron and Telegram polling both need one (see the README's
   Telegram section: polling "needs a process that stays alive"). That removes the entire
   economic argument for Edge Functions. There is nothing to keep in parity because there
   is only one implementation, ever.
@@ -149,21 +149,34 @@ report — the README already draws this exact distinction for response payload 
 ("right to store, wrong to send by default"); the same reduction applies to long-term
 storage once history is long enough to matter.
 
-### No Redis
+### No Redis — implemented
 
-The existing options/price caches and the [tiered-access.md](./tiered-access.md) quota
-counters don't need a separate cache service. The backend is one persistent process (the
-whole reason serverless was ruled out above), so:
+The backend is one persistent process (the whole reason serverless was ruled out above),
+so there's no separate cache service:
 
-- The short-TTL Yahoo Finance caches live in **in-process memory** (a plain `Map` or
-  `lru-cache`) — Redis's advantage over this is letting multiple processes share a cache,
-  which doesn't apply to a single hobby-scale container. The one cost: an in-process
-  cache empties on every deploy/restart, so the next request after a deploy re-fetches
-  from Yahoo once. Minor, not a correctness issue.
-- The quota counters live in **Postgres**, via the same `check_and_increment_quota`
-  function above — one store for everything durable, rather than splitting durable state
-  (subscription status) from ephemeral state (daily count) across two systems that then
-  need to be kept consistent.
+- The short-TTL Yahoo Finance caches (session/crumb, quote sizes, the live 5-minute
+  options-chain read, the Binance/CoinGecko cross-checks) live in **in-process memory** —
+  `src/lib/memoCache.ts`, a plain `Map` with a manual expiry timestamp. Redis's advantage
+  over this is letting multiple processes share a cache, which doesn't apply to a single
+  hobby-scale container. The one cost: an in-process cache empties on every deploy/restart,
+  so the next request after a deploy re-fetches from Yahoo once. Minor, not a correctness
+  issue.
+- Bar history (`bars` table, `src/storage/barsStore.ts`) is durable in Postgres, fetched
+  incrementally rather than re-downloaded on every check — daily kept forever, intraday
+  bounded to Yahoo's own serving window. This is the one piece that isn't just a cache:
+  closed candles never change, so storing them once and only fetching the delta is a real
+  win beyond what Redis's TTL model ever offered.
+- The options-chain daily archive (`option_snapshots`, `src/storage/optionsStore.ts`,
+  30-day retention) and the searched-ticker registry (`searched_tickers`,
+  `src/storage/searchedTickerStore.ts`) are Postgres too — both need to survive a restart,
+  which in-process memory can't provide.
+- Snap/report storage runs through `PostgresStorage` (`src/storage/postgresStorage.ts`),
+  the `StoragePort` adapter this doc anticipated — `SnapStore`/`ReportStore` needed no
+  changes.
+- The quota counters described below still land in Postgres, via
+  `check_and_increment_quota` — one store for everything durable, rather than splitting
+  durable state (subscription status) from ephemeral state (daily count) across two
+  systems that then need to be kept consistent.
 
 Revisit if the backend ever needs more than one instance — not expected before there's
 real revenue to justify scaling past hobby size.

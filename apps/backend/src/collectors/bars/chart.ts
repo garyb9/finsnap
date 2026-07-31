@@ -1,4 +1,3 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../../logger';
 import { backoffMs, wait } from '../../lib/async';
 import {
@@ -108,24 +107,22 @@ export function parseChart(symbol: string, interval: BarInterval, result: YahooC
 }
 
 /**
- * Build the chart URL.
- *
- * Daily bars are requested with an explicit `period1`/`period2` span rather
- * than `range=max`. Yahoo silently *downgrades granularity* for `range=max`,
- * answering a 1d request with monthly candles — 403 bars for 33 years of SPY
- * instead of 8,430. Every annualized figure computed off that is wrong, and
- * nothing in the response signals the substitution except `dataGranularity`.
- * An explicit unbounded period range returns true daily bars.
- *
- * Intraday intervals have no such problem and keep using `range`, which is the
- * only way to ask for Yahoo's intraday retention limits.
+ * `sinceMs`, when given, requests an explicit `period1`/`period2` span (the
+ * incremental-fetch path). Without it, daily bars use `period1=0` rather than
+ * `range=max` — Yahoo silently *downgrades granularity* for `range=max`,
+ * answering a 1d request with monthly candles. Intraday intervals have no
+ * such problem and use `range`.
  */
-function buildChartUrl(symbol: string, interval: BarInterval): string {
+function buildChartUrl(symbol: string, interval: BarInterval, sinceMs?: number): string {
   const base = `${YAHOO_CHART_BASE}/${encodeURIComponent(symbol)}`;
   const common = `interval=${interval}&includeAdjustedClose=true`;
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  if (sinceMs != null) {
+    return `${base}?period1=${Math.floor(sinceMs / 1000)}&period2=${nowSec}&${common}`;
+  }
 
   if (interval === BarInterval.Daily) {
-    const nowSec = Math.floor(Date.now() / 1000);
     return `${base}?period1=0&period2=${nowSec}&${common}`;
   }
 
@@ -136,10 +133,10 @@ function buildChartUrl(symbol: string, interval: BarInterval): string {
 export async function fetchChart(
   symbol: string,
   interval: BarInterval,
-  redis: Redis
+  sinceMs?: number
 ): Promise<Bar[] | null> {
-  const session = await getYahooSession(redis);
-  const { url, headers } = withSession(buildChartUrl(symbol, interval), session);
+  const session = await getYahooSession();
+  const { url, headers } = withSession(buildChartUrl(symbol, interval, sinceMs), session);
 
   for (let attempt = 0; attempt <= YAHOO_MAX_RETRIES; attempt++) {
     let response: Response;

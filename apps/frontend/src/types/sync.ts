@@ -37,6 +37,8 @@ export type SyncStep = {
   label: string;
   stage: SyncStage;
   fetches: FetchRecord[];
+  /** When this symbol's fetch began, so the UI can show live elapsed time while it's still running */
+  startedAt: string | null;
   ms: number | null;
   error?: string;
 };

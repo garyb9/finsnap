@@ -1,9 +1,8 @@
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
 import { backoffMs, wait } from '../lib/async';
+import { MemoCache } from '../lib/memoCache';
 import {
   OPTIONS_CACHE_TTL_SECONDS,
-  REDIS_KEYS,
   TICKER_DESCRIPTIONS,
   YAHOO_MAX_RETRIES,
   YAHOO_OPTIONS_BASE,
@@ -12,6 +11,7 @@ import {
 } from '../constants';
 import { getYahooSession, withSession, type YahooSession } from './yahooSession';
 import type { OptionsData, OptionsChain, OptionsContract } from './types';
+import type { OptionsStore } from '../storage/optionsStore';
 
 const log = createLogger('options');
 
@@ -31,9 +31,7 @@ interface YahooOptionsResult {
   }[];
 }
 
-function cacheKey(ticker: string): string {
-  return `${REDIS_KEYS.options}:${ticker.toUpperCase()}`;
-}
+const cache = new MemoCache<OptionsData>();
 
 function normalizeContracts(options: YahooOption[]): OptionsContract[] {
   return options
@@ -95,41 +93,29 @@ async function fetchYahooOptions(
   return null;
 }
 
-async function readCache(ticker: string, redis: Redis): Promise<OptionsData | null> {
-  try {
-    const cached = await redis.get(cacheKey(ticker));
-    if (!cached) return null;
-
-    const parsed = JSON.parse(cached) as OptionsData;
-    log.info(`${ticker}: using cached chain (${parsed.chains.length} expirations)`);
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-async function writeCache(data: OptionsData, redis: Redis): Promise<void> {
-  try {
-    await redis.set(cacheKey(data.ticker), JSON.stringify(data), 'EX', OPTIONS_CACHE_TTL_SECONDS);
-  } catch {
-    /* a cache miss next time is not worth failing the fetch over */
-  }
-}
-
 /**
  * Fetch a full options chain.
  *
  * Yahoo returns the first expiry inline but requires one request per additional
  * expiry, so the remainder are paged sequentially with a delay — parallelizing
  * these reliably trips the rate limiter.
+ *
+ * The live cache is in-process; `optionsStore` gets a daily archival copy of
+ * every real fetch.
  */
-export async function fetchOptionsData(ticker: string, redis: Redis): Promise<OptionsData | null> {
-  const cached = await readCache(ticker, redis);
-  if (cached) return cached;
+export async function fetchOptionsData(
+  ticker: string,
+  optionsStore: OptionsStore
+): Promise<OptionsData | null> {
+  const cached = cache.get(ticker.toUpperCase());
+  if (cached) {
+    log.info(`${ticker}: using cached chain (${cached.chains.length} expirations)`);
+    return cached;
+  }
 
   log.info(`fetching ${ticker} options chain...`);
 
-  const session = await getYahooSession(redis);
+  const session = await getYahooSession();
   const base = await fetchYahooOptions(ticker, session);
 
   if (!base) {
@@ -163,6 +149,15 @@ export async function fetchOptionsData(ticker: string, redis: Redis): Promise<Op
     fetchedAt: Date.now(),
   };
 
-  await writeCache(data, redis);
+  cache.set(data.ticker, data, OPTIONS_CACHE_TTL_SECONDS);
+
+  try {
+    await optionsStore.upsertSnapshot(data);
+  } catch (err) {
+    // A failed archive write is not worth failing the fetch over — the caller
+    // still gets today's chain, just without today's row in the archive.
+    log.warn(`${ticker}: options snapshot archive write failed: ${err}`);
+  }
+
   return data;
 }

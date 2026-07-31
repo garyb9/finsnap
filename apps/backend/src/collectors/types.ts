@@ -22,22 +22,6 @@ export interface BarSeries {
   fetchedAt: number;
 }
 
-/**
- * Columnar form used for Redis storage — roughly 40% smaller than an array of
- * objects once serialized, which matters for max-history daily series.
- */
-export interface PackedBarSeries {
-  symbol: string;
-  interval: BarInterval;
-  fetchedAt: number;
-  t: number[];
-  o: number[];
-  h: number[];
-  l: number[];
-  c: number[];
-  v: number[];
-}
-
 /** All intervals for one symbol. Any interval may be null if the fetch failed. */
 export interface SymbolBars {
   symbol: string;

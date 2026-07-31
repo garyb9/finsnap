@@ -1,10 +1,11 @@
 import { ulid } from 'ulid';
-import type Redis from 'ioredis';
 import { createLogger } from '../logger';
 import type { AssetSpec, Config } from '../config';
 import { BarCollector } from '../collectors/bars';
 import { fetchOptionsData } from '../collectors/options';
 import { fetchAssetSizes, type AssetSize } from '../collectors/quote';
+import type { BarsStore } from '../storage/barsStore';
+import type { OptionsStore } from '../storage/optionsStore';
 import { analyzeOptionsChain } from '../analyzers/options';
 import { analyzeAssetBars } from '../analyzers/price';
 import { analyzeTsmom } from '../analyzers/tsmom';
@@ -32,9 +33,10 @@ export class ReportBuilder {
 
   constructor(
     private config: Config,
-    private redis: Redis
+    barsStore: BarsStore,
+    private optionsStore: OptionsStore
   ) {
-    this.bars = new BarCollector(redis);
+    this.bars = new BarCollector(barsStore);
   }
 
   /**
@@ -59,10 +61,7 @@ export class ReportBuilder {
 
     // One batched request for the whole universe. Failure yields an empty map
     // and the report is built without size, which is decoration.
-    const sizes = await fetchAssetSizes(
-      this.config.universe.map((s) => s.symbol),
-      this.redis
-    );
+    const sizes = await fetchAssetSizes(this.config.universe.map((s) => s.symbol));
 
     for (const spec of this.config.universe) {
       try {
@@ -182,7 +181,7 @@ export class ReportBuilder {
   /** Nearest-expiry positioning, as context rather than a signal. */
   private async buildOptionsContext(spec: AssetSpec): Promise<OptionsContext | undefined> {
     try {
-      const data = await fetchOptionsData(spec.symbol, this.redis);
+      const data = await fetchOptionsData(spec.symbol, this.optionsStore);
       if (!data) return undefined;
 
       const analysis = analyzeOptionsChain(data);

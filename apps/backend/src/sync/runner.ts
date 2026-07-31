@@ -1,9 +1,10 @@
-import type Redis from 'ioredis';
 import type { Config } from '../config';
 import { BarCollector } from '../collectors/bars';
 import { fetchOptionsData } from '../collectors/options';
 import { createLogger } from '../logger';
 import type { SnapScheduler } from '../scheduler/cron';
+import type { BarsStore } from '../storage/barsStore';
+import type { OptionsStore } from '../storage/optionsStore';
 import { SyncTracker } from './tracker';
 import { SyncPhase, SyncStage, type SyncJob } from './types';
 
@@ -27,10 +28,11 @@ export class SyncRunner {
 
   constructor(
     private config: Config,
-    private redis: Redis,
+    barsStore: BarsStore,
+    private optionsStore: OptionsStore,
     private scheduler: SnapScheduler
   ) {
-    this.bars = new BarCollector(redis, (event) => this.tracker.recordFetch(event));
+    this.bars = new BarCollector(barsStore, (event) => this.tracker.recordFetch(event));
   }
 
   get isRunning(): boolean {
@@ -96,11 +98,11 @@ export class SyncRunner {
       this.tracker.beginSymbol(spec.symbol);
 
       try {
-        const bars = await this.bars.fetchSymbol(spec.symbol);
+        const bars = await this.bars.fetchSymbol(spec.symbol, { force: true });
 
         if (spec.hasOptions) {
           this.tracker.stage(spec.symbol, SyncStage.Options);
-          await fetchOptionsData(spec.symbol, this.redis);
+          await fetchOptionsData(spec.symbol, this.optionsStore);
         }
 
         const hasData = Boolean(bars.daily ?? bars.hourly);

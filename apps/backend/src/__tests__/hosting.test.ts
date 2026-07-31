@@ -5,11 +5,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Pool } from 'pg';
 import { Hono } from 'hono';
 import { loadConfig, TelegramMode, type Config } from '../config';
-import { REDIS_KEYS } from '../constants';
+import { STORAGE_KEYS } from '../constants';
 import { requireToken } from '../output/web/auth';
-import { RedisStorage } from '../storage/redisStore';
+import { PostgresStorage } from '../storage/postgresStorage';
 import { SnapStore } from '../storage/snapStore';
 import { ReportStore } from '../storage/reportStore';
 import type { StoragePort } from '../storage/types';
@@ -201,7 +202,7 @@ describe('storage port', () => {
     const storage = new MemoryStorage();
     const store = new SnapStore(storage);
     await store.saveSnap(snap);
-    storage.values.set(REDIS_KEYS.snapLatest, '{ not json');
+    storage.values.set(STORAGE_KEYS.snapLatest, '{ not json');
 
     expect(await store.getLatest()).toBeNull();
   });
@@ -210,7 +211,7 @@ describe('storage port', () => {
     const storage = new MemoryStorage();
     const store = new ReportStore(storage);
     await store.save(report);
-    await storage.listPush(REDIS_KEYS.reportHistory, 'not json');
+    await storage.listPush(STORAGE_KEYS.reportHistory, 'not json');
 
     expect(await store.getHistory()).toHaveLength(1);
   });
@@ -223,36 +224,48 @@ describe('storage port', () => {
   });
 });
 
-describe('RedisStorage', () => {
-  it('translates the port onto Redis commands', async () => {
-    const redis = {
-      get: vi.fn().mockResolvedValue('value'),
-      set: vi.fn().mockResolvedValue('OK'),
-      lpush: vi.fn().mockResolvedValue(1),
-      lrange: vi.fn().mockResolvedValue(['a']),
-      ltrim: vi.fn().mockResolvedValue('OK'),
-      llen: vi.fn().mockResolvedValue(3),
-    };
-    const storage = new RedisStorage(redis as never);
+describe('PostgresStorage', () => {
+  function makePool(query: ReturnType<typeof vi.fn>): Pool {
+    return { query } as unknown as Pool;
+  }
+
+  it('translates the port onto Postgres queries', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ value: 'value' }] }) // get
+      .mockResolvedValueOnce({ rows: [] }) // set: upsert
+      .mockResolvedValueOnce({ rows: [] }) // set: prune expired
+      .mockResolvedValueOnce({ rows: [] }) // listPush
+      .mockResolvedValueOnce({ rows: [{ value: 'a' }] }) // listRange
+      .mockResolvedValueOnce({ rows: [] }); // listTrim
+    const storage = new PostgresStorage(makePool(query));
 
     expect(await storage.get('k')).toBe('value');
-    await storage.set('k', 'v', 60);
-    expect(redis.set).toHaveBeenCalledWith('k', 'v', 'EX', 60);
 
-    // The port counts entries; Redis wants an inclusive end index.
-    await storage.listRange('l', 10);
-    expect(redis.lrange).toHaveBeenCalledWith('l', 0, 9);
+    await storage.set('k', 'v', 60);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO kv_entries'), [
+      'k',
+      'v',
+      60,
+    ]);
+
+    await storage.listPush('l', 'a');
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO kv_list_entries'), [
+      'l',
+      'a',
+    ]);
+
+    expect(await storage.listRange('l', 10)).toEqual(['a']);
     await storage.listTrim('l', 10);
-    expect(redis.ltrim).toHaveBeenCalledWith('l', 0, 9);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM kv_list_entries'), [
+      'l',
+      10,
+    ]);
   });
 
-  it('degrades reads to null/empty when Redis is unreachable', async () => {
-    const redis = {
-      get: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
-      lrange: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
-      llen: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
-    };
-    const storage = new RedisStorage(redis as never);
+  it('degrades reads to null/empty when Postgres is unreachable', async () => {
+    const query = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    const storage = new PostgresStorage(makePool(query));
 
     expect(await storage.get('k')).toBeNull();
     expect(await storage.listRange('l', 5)).toEqual([]);
