@@ -1,117 +1,90 @@
 # Hosting
 
 Where each piece runs, and why — the concrete decision behind
-[roadmap.md](./roadmap.md) Epic 1. Written for a hobby project: cheap and predictable
-beats cheapest-on-paper, and nothing here is worth scaling past until there's real
-revenue to justify it.
+[roadmap.md](./roadmap.md) Epic 1. Written for a hobby project, run alongside several
+other side projects: **$0-5/mo baseline beats cheapest-on-paper**, and nothing here is
+worth scaling past until there's real revenue to justify it.
 
 ## The stack
 
-| Piece | Host | Cost | Why |
+| Piece | Host | Cost |
+| --- | --- | --- |
+| Backend (API + Telegram bot + scheduler, one container) | **Railway**, Hobby plan | $5/mo flat |
+| Frontend (Next.js dashboard) | **Vercel** | Free tier |
+| Database | **Supabase** (Postgres only) | Free tier |
+
+No separate cache service — Redis was evaluated and dropped. The backend is one
+persistent process, so the short-TTL Yahoo Finance caches live in in-process memory (a
+plain `Map` or `lru-cache`), and the tiered-access quota counters live in Postgres
+alongside everything else durable. See
+[design/backend-data-architecture.md](./design/backend-data-architecture.md#no-redis).
+
+Realistic total to start: **~$5/mo**.
+
+## Backend host comparison
+
+Everything here was checked against the same requirement:
+[design/backend-data-architecture.md](./design/backend-data-architecture.md) rules out
+serverless because FinSnap needs a process that stays alive continuously — Telegram
+polling holds an open connection, and the 10-minute snapshot cron needs somewhere to
+tick. Anything invocation-based (serverless functions, edge compute) fails this
+regardless of how good its free tier looks, unless Telegram is rebuilt around webhook
+mode and the batch job is decomposed to fit an execution-time budget — both real,
+avoidable rewrites.
+
+| Host | Cost | Always-on? | Fits our shape? | Verdict |
+| --- | --- | --- | --- | --- |
+| **Railway** | $5/mo flat (Hobby, $5 usage credit included) | Yes | Yes — deploys the existing Dockerfile unchanged | **Picked.** Cheaper in practice than Fly once real usage is counted, easiest DX, zero rewrite. |
+| **Coolify + Hetzner** | ~$6/mo for a VPS (e.g. Hetzner CCX13) that can run several apps at once | Yes | Yes — same Docker container, just self-managed | **Genuine alternative, not a downgrade.** One box reportedly runs 8 apps/2 DBs/3 services comfortably. Cost is a wash against Railway for FinSnap *alone*, but wins as soon as a second side project shares the box — Railway's $5/mo is per project, this isn't. Trade: you own VPS-level OS upkeep; Coolify itself handles git-push deploys and automatic Let's Encrypt SSL, which is what a bare VPS was missing. |
+| Fly.io | ~$2/mo advertised, $8-25/mo realistic | Yes | Yes | No free tier for new orgs since Oct 2024; more infra control than needed here. |
+| Render (free tier) | $0 | **No** — spins down after 15 min idle | No | Kills Telegram polling and the cron loop outright. Paid always-on tier isn't meaningfully cheaper than Railway. |
+| Koyeb | Free tier closed to new signups (Feb 2026, acquired by Mistral AI, pivoted to AI-inference/enterprise) | Even when available: **No** — scale-to-zero after 1hr idle, non-negotiable | No | Dead end for a new user regardless of fit. |
+| Oracle Cloud "Always Free" | $0, genuinely indefinite on paper | Yes, in theory | Yes, in theory | Consistently reviewed as unreliable in practice — capacity often unavailable despite being "listed" free, real risk of reclamation/account termination, and it's a raw VM (own TLS/patching/deploy pipeline). Undercuts the uptime story in the go-to-market doc to save $5/mo. |
+| Bare VPS (Hetzner/DigitalOcean, no Coolify) | ~$4.50/mo+ | Yes | Yes | Cheapest raw compute, but no built-in health checks, restarts, or deploy pipeline — this is exactly what Coolify adds on top for a couple dollars more. |
+| AWS/GCP/Azure (ECS/Cloud Run/etc.) | Variable, generally more | Depends on config | Reintroduces the serverless-vs-persistent split-brain | Overkill for a solo hobby project's first deploy. |
+| Cloudflare Workers | $0 (100K req/day, 10ms CPU/invocation free; 30s CPU cap even paid) | **No** — no persistent process at all, isolates get evicted | No | Most restrictive option evaluated. `pg` needs a new connection per request (Hyperdrive/PgBouncer required to avoid exhausting Postgres). Cloudflare's own docs steer long-running work toward Workflows/Queues, not a single script — more re-architecture than Convex, for a tighter compute ceiling. |
+| Convex | $0 (1M calls/mo, 0.5GB storage) then $25/developer/mo | **No** — but its Node actions get a real 10-min/512MB budget, generous relative to the others | Partial — webhook mode works, batch job fits comfortably | Not a backend "host" — it's a different platform. Its own reactive document store + TypeScript query builder, not Postgres; adopting it means porting the existing collectors/analyzers/backtest code into its query/mutation/action separation (mutations can't fetch, actions can't write directly) for no functional gain FinSnap needs (no realtime requirement). Real one-time porting cost, not a hidden bill. |
+
+**Open fork, not fully closed**: Railway is the default for now (already deploys the
+existing Dockerfile with zero changes). Coolify + Hetzner is the one option here that
+could genuinely beat it on cost — specifically once a second parallel side project needs
+hosting too, since the VPS cost is shared rather than per-project. Worth revisiting the
+moment there's a second project to host.
+
+## Database comparison
+
+| Provider | Cost | Free-tier gotcha | Verdict |
 | --- | --- | --- | --- |
-| Backend (API + Telegram bot + scheduler, one container) | **Railway**, Hobby plan | $5/mo flat (includes $5 usage credit) | Needs a long-lived process (Telegram polling, 10-min cron) — see [design/backend-data-architecture.md](./design/backend-data-architecture.md) for why that rules out serverless. Simpler DX than Fly, and cheaper in practice: Fly's advertised cheapest machine is ~$2/mo, but real small apps land $8-25/mo once RAM, egress, and restarts are accounted for. Railway's flat $5 is a realistic floor, not a teaser price. |
-| Frontend (Next.js dashboard) | **Vercel** | Free tier, likely sufficient at this scale | Already the plan — SSR fixes the blank-until-JS problem noted in the README. |
-| Database | **Supabase** (Postgres only) | Free tier, likely sufficient at this scale | Used purely as hosted Postgres — no PostgREST, Auth, or Edge Functions. See [design/backend-data-architecture.md](./design/backend-data-architecture.md) for the full reasoning. |
+| **Supabase** | $0 (500MB DB, 500MB RAM, unlimited API requests, no card, commercial use allowed) | Pauses after **7 days** of zero API activity (emails a warning first, data retained) | **Picked.** The 7-day threshold never triggers here — the snapshot cron and bot hit the DB constantly. Caps at 2 active free projects account-wide, worth watching as more side projects spin up. |
+| Railway Postgres | Not free — draws from the same $5 Hobby credit as the backend (~$0.25/GB/mo storage + CPU/RAM/network), or $10-40/mo as a sized instance | N/A | Would sit on the same network as the backend (no cross-provider hop), but costs real money and competes with the backend's own credit rather than adding a second free allowance. Not worth it for a latency win of a few ms — see below. |
+| Neon (serverless Postgres) | $0 (0.5GB storage, 100 compute-hrs/mo) | Autosuspends after **5 minutes** of inactivity | **Worse fit than Supabase specifically for our cadence.** The snapshot cron runs every 10 minutes — longer than Neon's 5-minute suspend window — so the DB would cold-start (500ms-1s) on nearly every cron cycle. Not a lateral option here. |
+| Convex (as a DB, if the whole platform were adopted) | $0 then $25/developer/mo | N/A | Only relevant if adopting Convex wholesale — see backend table. Not a drop-in Postgres replacement. |
 
-No separate cache service — dropped Redis entirely. The backend is one persistent
-process, so the short-TTL Yahoo Finance caches live in-process memory (a plain `Map` or
-`lru-cache`), and the tiered-access quota counters live in Postgres alongside everything
-else durable. See [design/backend-data-architecture.md](./design/backend-data-architecture.md)
-for the reasoning — Redis earns its keep with multiple processes sharing state, which
-this stack deliberately doesn't have.
+**Cross-provider latency (Railway ↔ Supabase)**: real but small. Railway runs its own
+bare-metal network (Railway Metal — US/EU-Amsterdam/Southeast Asia); Supabase runs on
+AWS — genuinely two networks, no way around some hop. With matched regions and a
+persistent pooled connection (the backend is one long-lived process, so it holds a
+connection pool instead of reconnecting per request), that hop lands
+single-digit-to-low-tens-of-ms — imperceptible given the one-query-per-interaction design
+in [design/backend-data-architecture.md](./design/backend-data-architecture.md). The bar
+was "relatively good, not rust-maxxing," not "as low as physically possible," and this
+clears it without paying to colocate.
 
-Realistic total to start: **~$5/mo**, assuming Vercel/Supabase stay within their free
-tiers — which is likely at hobby scale (a handful of users, one bot, one dashboard).
+## Frontend comparison
 
-## Database: why Supabase over Railway's own Postgres
+| Host | Cost | Commercial use on free tier? | Next.js support | Verdict |
+| --- | --- | --- | --- | --- |
+| **Vercel** | Free tier | Nominally personal/non-commercial (Hobby plan) — worth verifying before the tiered-access mechanic starts taking payments | Native — Vercel built Next.js, most seamless SSR/ISR | **Picked, for now.** Best integration quality; the ToS point is the one thing to re-check before monetizing. |
+| Netlify | Free tier, ~100GB bandwidth | **Explicitly allowed** | Adapter-based, generally solid but not first-party | Clean fallback if Vercel's commercial-use terms turn out to be a real restriction. |
+| Cloudflare Pages | Free tier, **unlimited bandwidth** | Allowed | Adapter-based (`@cloudflare/next-on-pages`), some rougher edges on newer Next.js features | Best free-tier bandwidth of the three; worth it if bandwidth ever becomes the binding constraint, not before. |
 
-Railway offers a managed Postgres plugin too, which would sit on the same network as the
-backend — no cross-provider hop at all. Worth naming why that's not the pick:
+## Redis: dropped
 
-- **It isn't free.** Railway Postgres draws from the same $5 Hobby credit already paying
-  for the backend container (storage at ~$0.25/GB/mo plus CPU/RAM/network on top), so
-  adding it there means splitting one $5 pool across two things — real overage sooner,
-  not a second free allowance. Supabase's free tier (500MB DB storage, 500MB RAM,
-  unlimited API requests, no credit card, commercial use allowed) is a genuinely
-  separate $0 resource. Given the actual priority — as free as possible until there's
-  real ARR, across several parallel side projects — that's the deciding factor, not
-  architectural tidiness.
-- **The one free-tier gotcha**: Supabase pauses a free project after 7 days with zero API
-  activity (data retained, needs a manual resume, and it emails a warning first). Doesn't
-  bite here — the snapshot cron and bot commands hit the database constantly. Worth
-  knowing if a *future* side project's Supabase DB sits untouched for a week, and worth
-  noting the free tier caps out at **2 active projects**, so a third parallel hobby
-  project wanting its own free Supabase DB will need to pause one of the others or pay.
-- **Latency cost of not colocating is small.** Railway runs its own bare-metal network
-  (Railway Metal — US, EU/Amsterdam, Southeast Asia); Supabase runs on AWS. Genuinely two
-  networks, no way around a real hop. But with matched regions and a persistent pooled
-  connection (the backend is one long-lived process, so it holds a connection pool
-  instead of reconnecting per request — see
-  [design/backend-data-architecture.md](./design/backend-data-architecture.md)), that hop
-  is single-digit-to-low-tens-of-ms. Combined with the one-query-per-interaction design,
-  that's imperceptible in a chat reply — nowhere near the compounding, multiply-by-five
-  latency nihongo-go actually had. "Relatively good, not rust-maxxing" latency, which is
-  the actual bar, not "as low as physically possible."
-
-## Why not the alternatives
-
-- **Fly.io** — no longer has a free tier for new orgs (killed October 2024). The
-  advertised cheapest machine is misleading as a real cost signal; a real workload runs
-  meaningfully more. More infra control than we need here.
-- **Render / other free-tier PaaS** — free web services typically spin down on
-  inactivity, which kills Telegram polling and the cron loop. Would need a paid
-  always-on tier anyway, at which point it's not meaningfully cheaper than Railway.
-- **Oracle Cloud "Always Free"** — genuinely free indefinitely on paper (Ampere A1 /
-  AMD micro VMs), but consistently reviewed as unreliable in practice: regional
-  capacity often unavailable despite being "listed" as free, real risk of resource
-  reclamation or account termination with no support recourse, and it's a raw VM (you
-  own TLS, patching, deploy pipeline, process supervision). Not worth it to save $5/mo
-  on something that undercuts the uptime/trust story in
-  [marketing/go-to-market.md](./marketing/go-to-market.md).
-- **A bare VPS (Hetzner/DigitalOcean)** — cheapest raw compute per dollar, but no
-  built-in health checks, restarts, or deploy pipeline. Worth revisiting only if cost
-  becomes the binding constraint later, not for a first hosted deploy.
-- **AWS/GCP/Azure proper** — overkill; reintroduces the serverless-vs-persistent
-  split-brain this stack is deliberately avoiding.
-
-## Also explored: Convex and Netlify
-
-Both recommended by a friend, both worth a real look rather than a dismissal.
-
-**Convex — not a fit for the backend, and not really a "host" for what we have.**
-Convex bundles a database, serverless functions, cron, auth, and realtime subscriptions
-into one TypeScript-native platform, and its free tier is genuinely generous (1M function
-calls/mo, 0.5GB storage, 1GB files, crons and Node.js actions included, no card
-required). But it's a different paradigm, not an alternative place to run the existing
-app:
-
-- It's its own reactive document-relational store with a TypeScript query builder — not
-  SQL, not Postgres. Adopting it means rewriting the data layer in
-  [design/backend-data-architecture.md](./design/backend-data-architecture.md)
-  (`ticker_snapshots`, the quota-counter function) into Convex's model, not swapping a
-  connection string.
-- Its functions are still invocation-based, same category as Supabase Edge Functions —
-  no persistent process for Telegram polling (would force webhook mode) and the same
-  execution-time-budget question for a backtest compute cost that's explicitly planned to
-  grow with more strategies.
-- Where Convex actually shines — realtime subscriptions, live-updating collaborative
-  UIs — isn't a need here. A Telegram lookup or a dashboard load is one request/response,
-  not a live view multiple people are watching update in real time.
-
-Worth remembering for a *different* future project (something realtime/collaborative by
-nature), not this one.
-
-**Netlify — a legitimate Vercel alternative for the frontend, with one concrete edge.**
-Comparable free tier to Vercel (100GB bandwidth), and its Functions have the same
-persistent-process limitation as Vercel's — so it's not a backend candidate any more than
-Vercel was. The one real differentiator: **Netlify's free tier explicitly permits
-commercial use; Vercel's Hobby tier is nominally personal/non-commercial**, which matters
-once FinSnap is actually charging via the tiered-access mechanic. Worth checking Vercel's
-current Hobby ToS specifically before monetizing rather than assuming it's fine — if it's
-a real restriction, Netlify is a clean fallback. Sticking with Vercel for now regardless,
-since it's Next.js's own platform and the SSR/ISR integration is generally more seamless
-than Netlify's adapter-based support — but this is the one thing worth re-checking before
-the tiered-access mechanic goes live, not before.
+Evaluated for the options/price caches and the tiered-access quota counters, then cut
+entirely. The backend is one persistent process — in-process memory covers the caches,
+Postgres covers the durable counters — so there's no multi-process state to share, which
+is the only thing Redis would actually be buying here. Full reasoning in
+[design/backend-data-architecture.md](./design/backend-data-architecture.md#no-redis).
 
 ## Deploy: our own CI, not the platform's convenience path
 
@@ -128,12 +101,14 @@ passing checks first:
 
 ## Open decisions
 
-1. Region alignment — pick the Railway deploy region close to whatever region the
-   Supabase project is created in, to keep the DB round-trip short (a nice-to-have per
-   the backend-data-architecture doc, not load-bearing given the one-query-per-command
-   design).
-2. Revisit Redis if the backend ever needs more than one instance — not expected before
+1. **Railway vs. Coolify + Hetzner** for the backend — Railway is the default; revisit
+   once a second side project needs hosting, since that's when Coolify's shared-box
+   economics start winning on cost.
+2. Region alignment — pick the Railway (or Hetzner) region close to whatever region the
+   Supabase project is created in, to keep the DB round-trip short. Not load-bearing
+   given the one-query-per-command design, just a nice-to-have.
+3. Revisit Redis if the backend ever needs more than one instance — not expected before
    real revenue justifies scaling past hobby size.
-3. Verify Vercel's current Hobby-tier commercial-use terms before the tiered-access
+4. Verify Vercel's current Hobby-tier commercial-use terms before the tiered-access
    mechanic starts taking payments — switch the frontend to Netlify if it's a real
-   restriction, since its free tier explicitly allows commercial use.
+   restriction.
