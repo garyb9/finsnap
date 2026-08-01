@@ -4,7 +4,7 @@ Companion to [../roadmap.md](../roadmap.md) Epic 0 (Postgres adapter) and
 [tiered-access.md](./tiered-access.md) (the one place this project genuinely needs a
 stored procedure). Written after reviewing `nihongo-go` — a sibling Telegram bot project
 that hit real latency and duplication problems — specifically to avoid repeating them
-here, and to explain *why* FinSnap's shape avoids their root cause rather than just
+here, and to explain _why_ FinSnap's shape avoids their root cause rather than just
 asserting it will.
 
 ## Lessons from nihongo-go
@@ -21,7 +21,7 @@ history are largely the retrofit: a `.types.ts` interface plus a `.node.ts` impl
 migrated one feature at a time — `Migrate X onto the shared DB boundary`,
 `Consolidate src/** vs supabase/functions/** boundary`, `dedupe remaining Edge
 duplication`. The interface-per-repository shape it landed on is fine. What made it
-expensive was building it *after* the duplication already existed, across ten-plus
+expensive was building it _after_ the duplication already existed, across ten-plus
 features, instead of choosing one runtime up front.
 
 **2. Per-interaction logic needing multiple dependent round trips.** Drill card
@@ -47,7 +47,7 @@ per-request assembly of state that could have been assembled once, ahead of time
   economic argument for Edge Functions. There is nothing to keep in parity because there
   is only one implementation, ever.
 - **The expensive computation is already off the request path.** The daily/bi-daily batch
-  job runs every strategy across every window for every asset once, and that *is* "one
+  job runs every strategy across every window for every asset once, and that _is_ "one
   calc per stock" — the data point every user's lookup reads from. A Telegram command
   doesn't recompute or reassemble anything; it fetches one precomputed row. nihongo-go's
   per-request logic was itself the multi-step thing (pick, check, navigate); FinSnap's
@@ -193,11 +193,11 @@ nihongo-go) decide it instead.
 
 ## Summary
 
-| | nihongo-go's path | FinSnap's path |
-| --- | --- | --- |
-| Runtime | Node worker + Deno Edge Functions, retrofitted shared boundary | Node only, always |
-| Client | `pg` (Node) + `@supabase/supabase-js` (Edge) | `pg`/`postgres.js` only, direct to Postgres |
-| Per-request shape | Multi-step dependent lookups (pick, check, navigate) | Single indexed read of a precomputed document |
-| RPCs | Reactive consolidation, duplicated per content type | One per genuine atomic invariant (quota counter), from the start |
-| Compute cost driver | Per-request logic | Batch job, decoupled from request path |
-| Long-term bottleneck | Latency (fixed reactively) | Storage (addressed via retention, not urgently) |
+|                      | nihongo-go's path                                              | FinSnap's path                                                   |
+| -------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Runtime              | Node worker + Deno Edge Functions, retrofitted shared boundary | Node only, always                                                |
+| Client               | `pg` (Node) + `@supabase/supabase-js` (Edge)                   | `pg`/`postgres.js` only, direct to Postgres                      |
+| Per-request shape    | Multi-step dependent lookups (pick, check, navigate)           | Single indexed read of a precomputed document                    |
+| RPCs                 | Reactive consolidation, duplicated per content type            | One per genuine atomic invariant (quota counter), from the start |
+| Compute cost driver  | Per-request logic                                              | Batch job, decoupled from request path                           |
+| Long-term bottleneck | Latency (fixed reactively)                                     | Storage (addressed via retention, not urgently)                  |

@@ -7,19 +7,19 @@ lock eventually reaches the dashboard.
 
 **Rule that overrides every other decision in this doc**: quality never varies by tier.
 Free and paid users asking about the same symbol on the same day get the identical
-`edgeScore` / `opportunityScore` / verdict. Only the *count* of what you can ask is gated.
+`edgeScore` / `opportunityScore` / verdict. Only the _count_ of what you can ask is gated.
 This is the honesty moat applied to the pricing mechanic itself — the moment a free
 answer is worse than a paid one, FinSnap is doing what the scam-recognition guides warn
 about, just in the other direction.
 
 ## 1. Access tiers
 
-| Tier | Scope | Limit |
-| --- | --- | --- |
-| **Public broadcast** | The daily "today's orders" channel post | Unmetered, always free — this is the public track record, it cannot be paywalled without breaking the honesty moat |
-| **Free-featured universe** | On-demand `/snap` / `/report` lookups on the broad, low-specificity symbols | Unlimited |
-| **Metered universe** | On-demand lookups on any other symbol (individual stocks, and macro/commodity/crypto names) | Capped, two axes — see below |
-| **Subscriber** | Any symbol, any command | Unlimited |
+| Tier                       | Scope                                                                                       | Limit                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Public broadcast**       | The daily "today's orders" channel post                                                     | Unmetered, always free — this is the public track record, it cannot be paywalled without breaking the honesty moat |
+| **Free-featured universe** | On-demand `/snap` / `/report` lookups on the broad, low-specificity symbols                 | Unlimited                                                                                                          |
+| **Metered universe**       | On-demand lookups on any other symbol (individual stocks, and macro/commodity/crypto names) | Capped, two axes — see below                                                                                       |
+| **Subscriber**             | Any symbol, any command                                                                     | Unlimited                                                                                                          |
 
 **Proposed free-featured set** (flagged assumption — confirm before building): the 4
 market indices + 11 sector ETFs already defined in the README's Universe table (`SPY`,
@@ -38,7 +38,7 @@ numbers mentioned (3/day, and 3-5) read as two different limits, not one:
    or churns; a daily cap keeps people opening the bot repeatedly, which is more
    conversion surface, not less.
 2. **Per-symbol cumulative cap**: once a specific metered symbol has been looked up 3-5
-   times *total* by a user (independent of the daily quota resetting), that symbol locks
+   times _total_ by a user (independent of the daily quota resetting), that symbol locks
    for that user until they subscribe. This is deliberate: the user who keeps checking one
    name is the one with intent, and hitting a wall specifically on the name they're
    engaged with is a sharper upsell moment than a generic daily wall.
@@ -60,11 +60,11 @@ Start with **Telegram user ID as the only identity**, no separate account system
 interface Entitlement {
   telegramUserId: string;
   subscriptionStatus: 'free' | 'active' | 'past_due';
-  subscriptionProvider?: 'stars' | 'stripe';  // whichever last set subscriptionStatus
+  subscriptionProvider?: 'stars' | 'stripe'; // whichever last set subscriptionStatus
   subscriptionExpiresAt?: string;
   dailyMeteredCount: number;
-  dailyResetAt: string;              // next UTC/REPORT_TIMEZONE midnight
-  perSymbolCounts: Record<string, number>;  // metered-universe symbols only
+  dailyResetAt: string; // next UTC/REPORT_TIMEZONE midnight
+  perSymbolCounts: Record<string, number>; // metered-universe symbols only
 }
 ```
 
@@ -125,13 +125,13 @@ bot sends a **Stripe Checkout link**, the user pays in a browser, and a Stripe w
 record. That's a deliberate, common pattern (external checkout, bot grants access) — not a
 workaround.
 
-| | Telegram Stars | Stripe (external link) |
-| --- | --- | --- |
-| Friction | Zero-redirect, native in-chat UI | One browser hop at purchase only |
-| Recurring billing | Yes, native (`BotSubscriptionUpdated`) | Yes, native to Stripe |
-| Required for | Digital goods/services via Telegram's own payment UI (iOS policy) | N/A — always optional, always external |
-| Gives you | Nothing beyond pay/renew/cancel | Invoicing, coupons, tax handling, a real billing dashboard |
-| When it's worth adding | Always (v1) | Once a paid dashboard (Epic 4) or non-Telegram billing needs exist |
+|                        | Telegram Stars                                                    | Stripe (external link)                                             |
+| ---------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Friction               | Zero-redirect, native in-chat UI                                  | One browser hop at purchase only                                   |
+| Recurring billing      | Yes, native (`BotSubscriptionUpdated`)                            | Yes, native to Stripe                                              |
+| Required for           | Digital goods/services via Telegram's own payment UI (iOS policy) | N/A — always optional, always external                             |
+| Gives you              | Nothing beyond pay/renew/cancel                                   | Invoicing, coupons, tax handling, a real billing dashboard         |
+| When it's worth adding | Always (v1)                                                       | Once a paid dashboard (Epic 4) or non-Telegram billing needs exist |
 
 Ship Stars only for Epic 2. Add Stripe later as a second provider once the dashboard has
 its own paid tier — `subscriptionProvider` on the entitlement record is what keeps this a
@@ -142,10 +142,10 @@ one-line branch instead of a rewrite.
 Open question, not yet decided: **how does a dashboard visitor authenticate as the same
 entitled user?**
 
-| Option | Tradeoff |
-| --- | --- |
-| **Telegram Login Widget** (recommended default) | Reuses the exact identity already in the entitlement table — no account-linking problem, no second auth system. Only works for users who reach the dashboard already having used the bot, which fits the mobile-first sequencing anyway. |
-| **Add Google / X OAuth** | Needed only if the dashboard should work for someone who's never touched the bot. Real cost: a second identity that has to be linked to the same `Entitlement` record, which is the part worth avoiding until there's clear demand for dashboard-only signups. |
+| Option                                          | Tradeoff                                                                                                                                                                                                                                                       |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Telegram Login Widget** (recommended default) | Reuses the exact identity already in the entitlement table — no account-linking problem, no second auth system. Only works for users who reach the dashboard already having used the bot, which fits the mobile-first sequencing anyway.                       |
+| **Add Google / X OAuth**                        | Needed only if the dashboard should work for someone who's never touched the bot. Real cost: a second identity that has to be linked to the same `Entitlement` record, which is the part worth avoiding until there's clear demand for dashboard-only signups. |
 
 Recommendation: ship dashboard gating with the Telegram Login Widget only. Revisit
 Google/X once there's evidence people want the dashboard without ever opening the bot —

@@ -11,12 +11,12 @@ timestamps, not assumed" and concludes these people know what they're doing.
 
 ## What it gives that others charge for
 
-| Tool people pay for today                                             | What FinSnap already does instead                                                    |
-| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| TradingView Premium (~$15-60/mo) — alerts, Pine backtests                | Backtest engine + live multi-timeframe read, no Pine script required                   |
-| Portfolio123 / Composer (~$30-200/mo) — systematic strategy backtesting  | Full engine: 20 strategies × 10 windows × 23 assets, one line to add a new strategy     |
-| Seeking Alpha Quant / Zacks Rank (~$200+/yr) — proprietary black-box scores | `edgeScore` / `opportunityScore`, fully documented, not a black box                  |
-| Generic Telegram "signal" services (~$50-300/mo)                        | Same delivery channel, but with backtest evidence behind every call, not vibes         |
+| Tool people pay for today                                                   | What FinSnap already does instead                                                   |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| TradingView Premium (~$15-60/mo) — alerts, Pine backtests                   | Backtest engine + live multi-timeframe read, no Pine script required                |
+| Portfolio123 / Composer (~$30-200/mo) — systematic strategy backtesting     | Full engine: 20 strategies × 10 windows × 23 assets, one line to add a new strategy |
+| Seeking Alpha Quant / Zacks Rank (~$200+/yr) — proprietary black-box scores | `edgeScore` / `opportunityScore`, fully documented, not a black box                 |
+| Generic Telegram "signal" services (~$50-300/mo)                            | Same delivery channel, but with backtest evidence behind every call, not vibes      |
 
 The genuine differentiator: it **shows its work**. It separates "does this rule have a
 durable edge" from "should I act today," corrects for sample size and consistency, and
@@ -28,7 +28,7 @@ methodology.
 
 Every product in the competitive audit below is a dashboard you have to log into —
 TrendSpider, VectorVest, Danelfin, Tickeron, Composer. That's a crowded lane. FinSnap
-already has a dashboard too, but the deliberate bet is that the *primary* product is the
+already has a dashboard too, but the deliberate bet is that the _primary_ product is the
 Telegram bot: text a ticker, get a verdict, no tab left open, no session to remember. That
 pairs naturally with the honesty moat rather than competing with it — a ten-second mobile
 check only earns trust if the number behind it is the same rigorous one the dashboard
@@ -42,14 +42,14 @@ Researched six more products/categories in the space specifically for how they h
 transparency, verification, and the incentives around both. A pattern shows up: the
 opacity isn't an oversight, it's load-bearing for the business model.
 
-| Product | Claim | What's actually opaque or unverified |
-| --- | --- | --- |
-| **Danelfin** | "Transparent AI" — shows a Technical/Fundamental/Sentiment score breakdown per stock | The scoring *model itself* — 900+ indicators, 10,000+ features — is undisclosed. "Transparent" describes the UI attribution, not the methodology. A dashboard on top of a black box is still a black box. |
-| **Tickeron** | 230+ "AI Robots," 68-83% win rates, up to 125-313% annualized returns advertised | Numbers are self-reported with no independent verification or raw trade log. Trustpilot sits at 3.4/5 with users specifically calling results fraudulent and support dismissive on cancellation. |
-| **VectorVest** | Decades-old proprietary "VST rating," implies a durable edge from tenure alone | ComplaintsBoard/SmartCustomer ratings sit around 1.0-2.2/5; users report top-rated picks performing no better than random chance, and laggy signals that catch a move after it's already over. Cancellation reportedly requires a phone call or a written letter — friction as a retention strategy. |
-| **Composer.trade** | Publishes its own guide, *"How to Avoid Overfit Investment Strategies"* | The best-behaved product found. Acknowledges overfitting as a real risk in writing — but leaves avoiding it as reader homework; the platform itself runs no automated sensitivity/robustness check on a user's strategy. |
-| **TrendSpider** | Variance testing flags whether a backtest's return came from a few outsized wins vs. a real edge | Also a strong actor — this is a genuine anti-overfitting feature, not just a warning label. But it's a DIY workbench: $39-79+/mo buys the tool, and the user still builds and judges the strategy themselves. It has no house view and publishes no track record of its own. |
-| **Telegram signal channels generally** | "Insider" or "guaranteed" signals | The scam-recognition guides all converge on the same advice: *demand a public, third-party-verified track record, like a MyFXBook link, before paying.* That's the bar the entire category fails to clear — and the one thing worth building deliberately (see below). |
+| Product                                | Claim                                                                                            | What's actually opaque or unverified                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Danelfin**                           | "Transparent AI" — shows a Technical/Fundamental/Sentiment score breakdown per stock             | The scoring _model itself_ — 900+ indicators, 10,000+ features — is undisclosed. "Transparent" describes the UI attribution, not the methodology. A dashboard on top of a black box is still a black box.                                                                                            |
+| **Tickeron**                           | 230+ "AI Robots," 68-83% win rates, up to 125-313% annualized returns advertised                 | Numbers are self-reported with no independent verification or raw trade log. Trustpilot sits at 3.4/5 with users specifically calling results fraudulent and support dismissive on cancellation.                                                                                                     |
+| **VectorVest**                         | Decades-old proprietary "VST rating," implies a durable edge from tenure alone                   | ComplaintsBoard/SmartCustomer ratings sit around 1.0-2.2/5; users report top-rated picks performing no better than random chance, and laggy signals that catch a move after it's already over. Cancellation reportedly requires a phone call or a written letter — friction as a retention strategy. |
+| **Composer.trade**                     | Publishes its own guide, _"How to Avoid Overfit Investment Strategies"_                          | The best-behaved product found. Acknowledges overfitting as a real risk in writing — but leaves avoiding it as reader homework; the platform itself runs no automated sensitivity/robustness check on a user's strategy.                                                                             |
+| **TrendSpider**                        | Variance testing flags whether a backtest's return came from a few outsized wins vs. a real edge | Also a strong actor — this is a genuine anti-overfitting feature, not just a warning label. But it's a DIY workbench: $39-79+/mo buys the tool, and the user still builds and judges the strategy themselves. It has no house view and publishes no track record of its own.                         |
+| **Telegram signal channels generally** | "Insider" or "guaranteed" signals                                                                | The scam-recognition guides all converge on the same advice: _demand a public, third-party-verified track record, like a MyFXBook link, before paying._ That's the bar the entire category fails to clear — and the one thing worth building deliberately (see below).                               |
 
 Two products in that list (TrendSpider, Composer) are legitimately honest about the
 overfitting problem — which matters, because the moat isn't "everyone else is lying."
@@ -120,14 +120,14 @@ tell buyers to demand:
 
 Only claims that survive a stranger checking them:
 
-- *"See every rule, including the ones that lose."* — true because of the leaderboard,
+- _"See every rule, including the ones that lose."_ — true because of the leaderboard,
   not despite it.
-- *"Every backtest already pays its own fees."* — true because costs are non-optional in
+- _"Every backtest already pays its own fees."_ — true because costs are non-optional in
   the engine.
-- *"We publish our mistakes."* — true because the changelog exists, not because it's
+- _"We publish our mistakes."_ — true because the changelog exists, not because it's
   asserted once in a README.
-- *"Don't take our word for it — here's what we said this morning, before we knew if we
-  were right."* — true only once the public forward log (above) exists. This is the
+- _"Don't take our word for it — here's what we said this morning, before we knew if we
+  were right."_ — true only once the public forward log (above) exists. This is the
   single highest-leverage thing to ship before spending a dollar on marketing.
 
 ## What's missing (beyond infra — see [../roadmap.md](../roadmap.md) Epic 0/1)
@@ -154,7 +154,7 @@ Only claims that survive a stranger checking them:
   that's free credibility no ad spend buys.
 - **Build the track record in public**: a free Telegram channel or X/Twitter account
   posting only what fired each morning, timestamped, un-editable after the fact. This
-  *is* the marketing — it's also Epic 2 of the roadmap, so it isn't extra work.
+  _is_ the marketing — it's also Epic 2 of the roadmap, so it isn't extra work.
 - **Turn the field guide into SEO**, since it's already unusually good, tying
   definitions to live numbers instead of static explainer content.
 - **Write the competitive honesty audit up as content.** A post naming what Danelfin,
