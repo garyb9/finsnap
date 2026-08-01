@@ -9,7 +9,11 @@ import {
   nDayLowReversion,
   rsiReversion,
 } from '../backtest/strategies/meanReversion';
-import { absoluteMomentum, donchianBreakout } from '../backtest/strategies/breakout';
+import {
+  absoluteMomentum,
+  donchianBreakout,
+  volatilitySqueezeBreakout,
+} from '../backtest/strategies/breakout';
 import { barsFromCloses, oscillatingCloses, risingCloses } from './helpers/bars';
 
 describe('strategy registry', () => {
@@ -134,6 +138,22 @@ describe('momentum and breakout strategies', () => {
   it('donchian breakout enters on new highs', () => {
     const bars = barsFromCloses(risingCloses(200, 100, 1));
     expect(donchianBreakout(20, 10).signals(bars).at(-1)).toBe(1);
+  });
+
+  it('volatility squeeze breakout enters after a quiet stretch breaks out', () => {
+    // Flat prices compress the Bollinger band to its tightest reading, then a
+    // sharp move breaks above the upper band while that squeeze is still recent.
+    const bars = barsFromCloses([...Array(40).fill(100), 130]);
+    expect(volatilitySqueezeBreakout(10, 2, 20, 5).signals(bars).at(-1)).toBe(1);
+  });
+
+  it('volatility squeeze breakout ignores a breakout with no prior squeeze', () => {
+    // A steadily rising market never compresses — bandwidth keeps expanding —
+    // so no bar ever qualifies as a fresh squeeze low, and the rule stays flat.
+    const bars = barsFromCloses(risingCloses(200, 100, 1));
+    expect(
+      volatilitySqueezeBreakout(10, 2, 20, 5).signals(bars).every((s) => s === 0)
+    ).toBe(true);
   });
 });
 

@@ -12,6 +12,7 @@ import {
 } from '../backtest/types';
 import { BarInterval } from '../collectors/types';
 import { AssetClass } from '../config';
+import { AssetCategory } from '../constants/enums';
 import { Verdict } from '../report/types';
 
 function makeStats(overrides: Partial<BacktestStats> = {}): BacktestStats {
@@ -79,6 +80,7 @@ function makeAsset(overrides: Partial<AssetOpportunity> = {}): AssetOpportunity 
     symbol: 'BTC-USD',
     label: 'BTC',
     assetClass: AssetClass.Crypto,
+    category: AssetCategory.Crypto,
     lastClose: 118_420.123,
     lastChangePct: 1.234,
     lastBarTime: Date.UTC(2026, 6, 27),

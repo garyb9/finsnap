@@ -1,5 +1,5 @@
 import { theme } from '../styles/theme';
-import { AssetClass, SignalAction, StrategyKind, Verdict } from '../types/enums';
+import { AssetCategory, SignalAction, StrategyKind, Verdict } from '../types/enums';
 
 export function fmtNum(n: number, decimals = 1): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: decimals });
@@ -166,9 +166,14 @@ export const STRATEGY_KIND_COLOR: Record<StrategyKind, string> = {
   [StrategyKind.MeanReversion]: theme.colors.kindMeanReversion,
 };
 
-export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
-  [AssetClass.Equity]: 'Equities',
-  [AssetClass.Crypto]: 'Crypto',
+export const CATEGORY_LABEL: Record<AssetCategory, string> = {
+  [AssetCategory.EquityIndex]: 'Market indices',
+  [AssetCategory.Sector]: 'Sectors',
+  [AssetCategory.Crypto]: 'Crypto',
+  [AssetCategory.Commodity]: 'Commodities',
+  [AssetCategory.Currency]: 'Currency',
+  [AssetCategory.Bond]: 'Bonds',
+  [AssetCategory.Stock]: 'Single stocks',
 };
 
 export const ACTION_COLOR: Record<SignalAction, string> = {

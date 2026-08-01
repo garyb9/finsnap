@@ -1,5 +1,5 @@
 import type { Bar } from '../../collectors/types';
-import { atr, closes, donchian, roc } from '../indicators';
+import { atr, bollinger, closes, donchian, rollingMin, roc } from '../indicators';
 import { StrategyKind, type Signal, type StrategyDef } from '../types';
 import { defined, stateMachine, whenTrue } from './helpers';
 
@@ -87,6 +87,61 @@ export function chandelierTrend(
             position = 0;
             highestClose = -Infinity;
           }
+        }
+        signals[i] = position;
+      }
+
+      return signals;
+    },
+  };
+}
+
+/**
+ * Buy a breakout above the upper Bollinger band, but only within `triggerWindow`
+ * bars of a volatility squeeze — Bollinger Bandwidth printing a new
+ * `squeezeLookback`-bar low. Bandwidth compresses when a market goes quiet and
+ * expands when it moves; a squeeze marks the quiet, and this rule bets the
+ * expansion that typically follows one is directional rather than noise.
+ * `bollingerBreakout` will buy the same band cross with no such precondition —
+ * this is the same trade, gated on the regime that (per Bollinger's own
+ * research) makes the break more likely to run.
+ */
+export function volatilitySqueezeBreakout(
+  period: number,
+  mult: number,
+  squeezeLookback: number,
+  triggerWindow: number
+): StrategyDef {
+  return {
+    id: `vol_squeeze_breakout_${period}_${mult}_${squeezeLookback}_${triggerWindow}`,
+    name: `Volatility Squeeze Breakout ${period}/${mult}σ`,
+    kind: StrategyKind.Breakout,
+    description:
+      `Buy a close above the upper ${mult}σ Bollinger band within ${triggerWindow} bars of a ` +
+      `volatility squeeze — Bollinger Bandwidth making a fresh ${squeezeLookback}-bar low — and ` +
+      `exit back at the middle band.`,
+    params: { period, mult, squeezeLookback, triggerWindow },
+    warmup: period + squeezeLookback,
+    signals(bars: Bar[]) {
+      const price = closes(bars);
+      const bb = bollinger(price, period, mult);
+      const bandwidthFloor = rollingMin(bb.bandwidth, squeezeLookback);
+
+      const signals = new Array<Signal>(bars.length).fill(0);
+      let position = 0;
+      let barsSinceSqueeze = Infinity;
+
+      for (let i = 0; i < bars.length; i++) {
+        const squeezed =
+          defined(bb.bandwidth[i], bandwidthFloor[i]) && bb.bandwidth[i] <= bandwidthFloor[i];
+        barsSinceSqueeze = squeezed ? 0 : barsSinceSqueeze + 1;
+
+        if (position === 0) {
+          if (defined(bb.upper[i]) && price[i] > bb.upper[i] && barsSinceSqueeze <= triggerWindow) {
+            position = 1;
+          }
+        } else if (defined(bb.middle[i]) && price[i] < bb.middle[i]) {
+          position = 0;
         }
         signals[i] = position;
       }

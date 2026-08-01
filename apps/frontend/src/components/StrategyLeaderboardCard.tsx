@@ -3,22 +3,30 @@ import Link from 'next/link';
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { CardTitle, ExpTableScroll } from './Card';
-import { ASSET_CLASS_LABEL, changeColor, columnRankColor, fmtPct } from '../lib/format';
+import { CATEGORY_LABEL, changeColor, columnRankColor, fmtPct } from '../lib/format';
 import { StrategyKindTag } from './StrategyKindTag';
 import { strategyAnchor } from '../types/guide';
 import type {
   BenchmarkSummary,
-  ClassLeaderboardCell,
+  CategoryLeaderboardCell,
   StrategyLeaderboard,
   StrategyLeaderboardRow,
 } from '../types/leaderboard';
-import { AssetClass, WindowId } from '../types/enums';
+import { AssetCategory, WindowId } from '../types/enums';
 
-/** Equities first — it is most of the universe today; crypto is one asset and grows from here. */
-const CLASS_ORDER = [AssetClass.Equity, AssetClass.Crypto];
+/** Broadest context first, matching the order the backend already pools these in. */
+const CATEGORY_ORDER = [
+  AssetCategory.EquityIndex,
+  AssetCategory.Sector,
+  AssetCategory.Crypto,
+  AssetCategory.Commodity,
+  AssetCategory.Currency,
+  AssetCategory.Bond,
+  AssetCategory.Stock,
+];
 
-/** How many rows each asset-class column shows before it is cut off. */
-const CLASS_TOP_N = 5;
+/** How many rows each category column shows before it is cut off. */
+const CATEGORY_TOP_N = 5;
 
 /**
  * Which rule actually has an edge, pooled across the whole universe rather
@@ -315,17 +323,33 @@ const Bench = styled.span<{ $color: string }>`
   color: ${({ $color }) => $color};
 `;
 
+/**
+ * A fixed track count, not `auto-fit` — `auto-fit` collapses unused tracks
+ * and hands their width to whatever is left, so a trailing lone column
+ * (bonds today, with only one or two assets) stretched to fill an entire row
+ * by itself. A fixed `repeat(3, …)` leaves a short last row's empty cells
+ * just that — empty — instead of handing their space to one column.
+ */
 const ClassGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px 24px;
   padding: 16px 22px 20px;
+
+  @media (max-width: ${theme.breakpoints.lg}) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: ${theme.breakpoints.sm}) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 const ClassColumn = styled.div`
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 `;
 
 const ClassColumnTitle = styled.div`
@@ -371,6 +395,12 @@ const ClassName = styled.span`
   ${ClassRow}:hover & {
     color: ${theme.colors.accent};
   }
+`;
+
+/** Smaller than the tag everywhere else it appears — this column is the tightest space it sits in. */
+const CompactKindTag = styled(StrategyKindTag)`
+  padding: 1px 5px;
+  font-size: 0.52rem;
 `;
 
 const ClassWinRate = styled.span<{ $color: string }>`
@@ -462,26 +492,27 @@ function fmtReturn(pct: number): string {
   return fmtPct(pct, Math.abs(pct) >= 100 ? 0 : 1);
 }
 
-type ClassLeader = { row: StrategyLeaderboardRow; cell: ClassLeaderboardCell };
+type CategoryLeader = { row: StrategyLeaderboardRow; cell: CategoryLeaderboardCell };
 
 /**
- * Top strategies for one asset class, ranked the same way the table's own
+ * Top strategies for one asset category, ranked the same way the table's own
  * "Overall" column is — win rate first, average excess CAGR breaks a tie —
- * except pooled over only that class's assets instead of the whole universe.
- * A thin class (crypto is one asset today) still shows up, honestly labelled
- * with its own asset count rather than hidden behind a coverage floor.
+ * except pooled over only that category's assets instead of the whole
+ * universe. A thin category (crypto is one asset today) still shows up,
+ * honestly labelled with its own asset count rather than hidden behind a
+ * coverage floor.
  */
-function ClassColumnBody({ assetClass, leaders }: { assetClass: AssetClass; leaders: ClassLeader[] }) {
+function ClassColumnBody({ category, leaders }: { category: AssetCategory; leaders: CategoryLeader[] }) {
   return (
     <ClassColumn>
-      <ClassColumnTitle>{ASSET_CLASS_LABEL[assetClass]}</ClassColumnTitle>
+      <ClassColumnTitle>{CATEGORY_LABEL[category]}</ClassColumnTitle>
       {leaders.length === 0 ? (
-        <ClassEmpty>No strategy has a result on this class yet.</ClassEmpty>
+        <ClassEmpty>No strategy has a result on this category yet.</ClassEmpty>
       ) : (
         leaders.map(({ row, cell }, i) => (
           <ClassRow key={row.strategyId} href={`/guide#${strategyAnchor(row.strategyId)}`}>
             <ClassRank>{i + 1}</ClassRank>
-            <StrategyKindTag kind={row.kind} />
+            <CompactKindTag kind={row.kind} />
             <ClassName>{row.name}</ClassName>
             <ClassWinRate
               $color={changeColor(cell.avgExcessCagrPct)}
@@ -566,20 +597,20 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
   const rows = useMemo(() => sortRows(board.rows, sort), [board.rows, sort]);
 
   const classColumns = useMemo(() => {
-    return CLASS_ORDER.map((assetClass) => {
+    return CATEGORY_ORDER.map((category) => {
       const leaders = board.rows
         .map((row) => ({
           row,
-          cell: row.byAssetClass.find((c) => c.assetClass === assetClass),
+          cell: row.byCategory.find((c) => c.category === category),
         }))
-        .filter((x): x is ClassLeader => x.cell !== undefined)
+        .filter((x): x is CategoryLeader => x.cell !== undefined)
         .sort(
           (a, b) =>
             b.cell.winRatePct - a.cell.winRatePct || b.cell.avgExcessCagrPct - a.cell.avgExcessCagrPct
         )
-        .slice(0, CLASS_TOP_N);
+        .slice(0, CATEGORY_TOP_N);
 
-      return { assetClass, leaders };
+      return { category, leaders };
     }).filter((col) => col.leaders.length > 0);
   }, [board.rows]);
 
@@ -730,14 +761,14 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
       {classColumns.length > 0 && (
         <>
           <SectionLabel>
-            <span>Best by asset class</span>
+            <span>Best by category</span>
             <Legend>
-              <span>ranked the same way as Overall, pooled within the class instead of the universe</span>
+              <span>ranked the same way as Overall, pooled within the category instead of the universe</span>
             </Legend>
           </SectionLabel>
           <ClassGrid>
-            {classColumns.map(({ assetClass, leaders }) => (
-              <ClassColumnBody key={assetClass} assetClass={assetClass} leaders={leaders} />
+            {classColumns.map(({ category, leaders }) => (
+              <ClassColumnBody key={category} category={category} leaders={leaders} />
             ))}
           </ClassGrid>
         </>

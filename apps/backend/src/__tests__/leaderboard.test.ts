@@ -11,6 +11,8 @@ import {
   type WindowResult,
 } from '../backtest/types';
 import { AssetClass } from '../config';
+import { assetInfo } from '../constants/assets';
+import { AssetCategory } from '../constants/enums';
 
 function makeStats(overrides: Partial<BacktestStats> = {}): BacktestStats {
   return {
@@ -82,6 +84,7 @@ function makeAsset(
     symbol,
     label: symbol,
     assetClass,
+    category: assetInfo(symbol, assetClass).category,
     lastClose: 100,
     lastChangePct: 1,
     lastBarTime: Date.UTC(2026, 6, 27),
@@ -305,8 +308,10 @@ describe('buildLeaderboard', () => {
     expect(buildLeaderboard(makeReport([])).benchmark).toBeNull();
   });
 
-  it('pools win rate separately by asset class', () => {
+  it('pools win rate separately by asset category, not just asset class', () => {
     const report = makeReport([
+      // Both equities, but different categories — a sector index and a broad
+      // market index — which is the whole point of pooling by category.
       makeAsset(
         'SPY',
         [
@@ -326,6 +331,15 @@ describe('buildLeaderboard', () => {
         AssetClass.Equity
       ),
       makeAsset(
+        'XLK',
+        [
+          makeStrategy('a', {
+            windows: [makeWindow(WindowId.Y1, { beatsBenchmark: true, excessCagrPct: 6 })],
+          }),
+        ],
+        AssetClass.Equity
+      ),
+      makeAsset(
         'BTC-USD',
         [
           makeStrategy('a', {
@@ -338,12 +352,16 @@ describe('buildLeaderboard', () => {
 
     const board = buildLeaderboard(report);
     const row = board.rows.find((r) => r.strategyId === 'a')!;
-    const equity = row.byAssetClass.find((c) => c.assetClass === AssetClass.Equity)!;
-    const crypto = row.byAssetClass.find((c) => c.assetClass === AssetClass.Crypto)!;
+    const equityIndex = row.byCategory.find((c) => c.category === AssetCategory.EquityIndex)!;
+    const sector = row.byCategory.find((c) => c.category === AssetCategory.Sector)!;
+    const crypto = row.byCategory.find((c) => c.category === AssetCategory.Crypto)!;
 
-    expect(equity.assetsCovered).toBe(2);
-    expect(equity.winRatePct).toBe(50);
-    expect(equity.avgExcessCagrPct).toBe(1);
+    expect(equityIndex.assetsCovered).toBe(2);
+    expect(equityIndex.winRatePct).toBe(50);
+    expect(equityIndex.avgExcessCagrPct).toBe(1);
+    expect(sector.assetsCovered).toBe(1);
+    expect(sector.winRatePct).toBe(100);
+    expect(sector.avgExcessCagrPct).toBe(6);
     expect(crypto.assetsCovered).toBe(1);
     expect(crypto.winRatePct).toBe(100);
     expect(crypto.avgExcessCagrPct).toBe(10);

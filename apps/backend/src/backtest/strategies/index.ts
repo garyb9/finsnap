@@ -1,6 +1,11 @@
 import { WARMUP_SAFETY_FACTOR } from '../../constants';
 import { StrategyKind, type StrategyDef } from '../types';
-import { absoluteMomentum, chandelierTrend, donchianBreakout } from './breakout';
+import {
+  absoluteMomentum,
+  chandelierTrend,
+  donchianBreakout,
+  volatilitySqueezeBreakout,
+} from './breakout';
 import {
   bollingerBreakout,
   bollingerReversion,
@@ -72,6 +77,8 @@ export const STRATEGIES: StrategyDef[] = [
   donchianBreakout(55, 20),
   chandelierTrend(20, 14, 3),
   bollingerBreakout(20, 2),
+  volatilitySqueezeBreakout(20, 2, 120, 10),
+  volatilitySqueezeBreakout(20, 2, 60, 5),
 
   // Mean reversion
   rsiReversion(14, 30, 70),
