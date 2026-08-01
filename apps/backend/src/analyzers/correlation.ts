@@ -129,10 +129,12 @@ const CATEGORY_ORDER: AssetCategory[] = [
   AssetCategory.Crypto,
   AssetCategory.EquityIndex,
   AssetCategory.Sector,
+  AssetCategory.Industry,
   AssetCategory.Stock,
   AssetCategory.Commodity,
   AssetCategory.Currency,
   AssetCategory.Bond,
+  AssetCategory.Volatility,
 ];
 
 function sortNodes(series: CorrelationSeries[]): CorrelationSeries[] {

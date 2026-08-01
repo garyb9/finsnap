@@ -84,6 +84,24 @@ export const ASSET_INFO: Record<string, AssetInfo> = {
       'Two thousand small US companies. More exposed to the domestic economy and to credit ' +
       'conditions than the large-cap indices, and noticeably more volatile.',
   },
+  EEM: {
+    name: 'iShares MSCI Emerging Markets ETF',
+    shortName: 'Emerging Markets',
+    category: AssetCategory.EquityIndex,
+    blurb:
+      'Large and mid-cap companies across emerging economies, heavily weighted toward China, ' +
+      'Taiwan and India. The first place US-only breadth gets tested against something ' +
+      'outside the S&P.',
+  },
+  EFA: {
+    name: 'iShares MSCI EAFE ETF',
+    shortName: 'Developed ex-US',
+    category: AssetCategory.EquityIndex,
+    blurb:
+      'Developed markets outside North America — Japan, the UK and Western Europe. The ' +
+      'developed-market counterpart to EEM, without the currency and political risk that ' +
+      'comes with emerging markets.',
+  },
 
   // ── Sectors (the S&P 500 sliced into the eleven GICS sectors) ─────────────
   XLK: {
@@ -177,6 +195,26 @@ export const ASSET_INFO: Record<string, AssetInfo> = {
     caveat: 'Created in 2018 when the sector was redefined; history before then does not exist.',
   },
 
+  // ── Industry (narrower than a GICS sector — one slice worth watching on its
+  // own rather than folded into the parent sector's average) ────────────────
+  SMH: {
+    name: 'VanEck Semiconductor ETF',
+    shortName: 'Semiconductors',
+    category: AssetCategory.Industry,
+    blurb:
+      'The chipmakers and equipment suppliers buried inside XLK and QQQ, isolated. A handful ' +
+      'of names dominate the weighting, so it runs harder in both directions than Technology ' +
+      'as a whole.',
+  },
+  XPH: {
+    name: 'SPDR S&P Pharmaceuticals ETF',
+    shortName: 'Pharmaceuticals',
+    category: AssetCategory.Industry,
+    blurb:
+      'Drug makers pulled out of Health Care (XLV) and equal-weighted rather than weighted by ' +
+      'size, so no single mega-cap dominates the return the way it can in XLV.',
+  },
+
   // ── Commodities ───────────────────────────────────────────────────────────
   GLD: {
     name: 'SPDR Gold Shares',
@@ -224,6 +262,22 @@ export const ASSET_INFO: Record<string, AssetInfo> = {
       'Long the dollar against a basket of six major currencies — the DXY. A rising line here ' +
       'is usually a headwind for commodities and for foreign earnings.',
   },
+  FXE: {
+    name: 'Invesco CurrencyShares Euro Trust',
+    shortName: 'Euro',
+    category: AssetCategory.Currency,
+    blurb:
+      'Holds euros in a bank account and tracks EUR/USD. The largest weight in the dollar ' +
+      "index, so it moves as UUP's mirror image more often than not.",
+  },
+  FXY: {
+    name: 'Invesco CurrencyShares Japanese Yen Trust',
+    shortName: 'Japanese Yen',
+    category: AssetCategory.Currency,
+    blurb:
+      'Holds yen and tracks JPY/USD. Doubles as a risk-off signal: the yen is a funding ' +
+      'currency for carry trades, so it tends to jump when equity markets sell off hard.',
+  },
 
   // ── Bonds ─────────────────────────────────────────────────────────────────
   TLT: {
@@ -233,6 +287,38 @@ export const ASSET_INFO: Record<string, AssetInfo> = {
     blurb:
       'Long-dated US government debt. The cleanest expression of interest-rate direction: ' +
       'yields up, price down, and with twenty-year maturities the swing is large.',
+  },
+  LQD: {
+    name: 'iShares iBoxx Investment Grade Corporate Bond ETF',
+    shortName: 'Investment Grade Credit',
+    category: AssetCategory.Bond,
+    blurb:
+      'Investment-grade corporate debt. Moves with rates the way TLT does, but with a credit ' +
+      'spread layered on top — the gap between LQD and HYG is a clean read on how nervous ' +
+      'credit markets are.',
+  },
+  HYG: {
+    name: 'iShares iBoxx High Yield Corporate Bond ETF',
+    shortName: 'High Yield Credit',
+    category: AssetCategory.Bond,
+    blurb:
+      'Sub-investment-grade ("junk") corporate debt. Trades more like an equity risk-appetite ' +
+      'gauge than a rate instrument — spreads widen fast when credit gets nervous, often ' +
+      'ahead of stocks.',
+  },
+
+  // ── Volatility ────────────────────────────────────────────────────────────
+  VXX: {
+    name: 'iPath Series B S&P 500 VIX Short-Term Futures ETN',
+    shortName: 'VIX Futures',
+    category: AssetCategory.Volatility,
+    blurb:
+      "Tracks short-term VIX futures — the market's implied-volatility gauge. Spikes when " +
+      'equities sell off hard, the closest thing the universe has to a fear gauge.',
+    caveat:
+      'The futures curve is usually in contango, so this structurally bleeds value over time. ' +
+      'It is a hedge or a trading vehicle, never a buy-and-hold position — long-window ' +
+      'backtests will show relentless decay that has nothing to do with market direction.',
   },
 };
 
@@ -262,19 +348,23 @@ export function assetInfo(symbol: string, assetClass: AssetClass): AssetInfo {
 export const CATEGORY_ORDER: AssetCategory[] = [
   AssetCategory.EquityIndex,
   AssetCategory.Sector,
+  AssetCategory.Industry,
   AssetCategory.Crypto,
   AssetCategory.Commodity,
   AssetCategory.Currency,
   AssetCategory.Bond,
+  AssetCategory.Volatility,
   AssetCategory.Stock,
 ];
 
 export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   [AssetCategory.EquityIndex]: 'Market indices',
   [AssetCategory.Sector]: 'Sectors',
+  [AssetCategory.Industry]: 'Industries',
   [AssetCategory.Crypto]: 'Crypto',
   [AssetCategory.Commodity]: 'Commodities',
   [AssetCategory.Currency]: 'Currency',
   [AssetCategory.Bond]: 'Bonds',
+  [AssetCategory.Volatility]: 'Volatility',
   [AssetCategory.Stock]: 'Single stocks',
 };

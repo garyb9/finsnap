@@ -24,13 +24,17 @@ export enum AssetClass {
  */
 export enum AssetCategory {
   Crypto = 'crypto',
-  /** Broad equity market index — S&P 500, Nasdaq 100, Dow, Russell 2000 */
+  /** Broad equity market index — S&P 500, Nasdaq 100, Dow, Russell 2000, and their international counterparts */
   EquityIndex = 'equityIndex',
   /** One slice of the equity market — the GICS sectors */
   Sector = 'sector',
+  /** Narrower than a GICS sector — a single industry inside one, e.g. semiconductors inside Technology */
+  Industry = 'industry',
   Commodity = 'commodity',
   Currency = 'currency',
   Bond = 'bond',
+  /** Implied-volatility exposure — a hedge or trading vehicle, not a directional bet */
+  Volatility = 'volatility',
   /** A single company, and the fallback for anything unrecognized */
   Stock = 'stock',
 }

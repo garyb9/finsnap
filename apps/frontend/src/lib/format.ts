@@ -169,10 +169,12 @@ export const STRATEGY_KIND_COLOR: Record<StrategyKind, string> = {
 export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   [AssetCategory.EquityIndex]: 'Market indices',
   [AssetCategory.Sector]: 'Sectors',
+  [AssetCategory.Industry]: 'Industries',
   [AssetCategory.Crypto]: 'Crypto',
   [AssetCategory.Commodity]: 'Commodities',
   [AssetCategory.Currency]: 'Currency',
   [AssetCategory.Bond]: 'Bonds',
+  [AssetCategory.Volatility]: 'Volatility',
   [AssetCategory.Stock]: 'Single stocks',
 };
 

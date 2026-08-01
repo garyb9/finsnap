@@ -15,9 +15,11 @@ export enum AssetCategory {
   Crypto = 'crypto',
   EquityIndex = 'equityIndex',
   Sector = 'sector',
+  Industry = 'industry',
   Commodity = 'commodity',
   Currency = 'currency',
   Bond = 'bond',
+  Volatility = 'volatility',
   Stock = 'stock',
 }
 

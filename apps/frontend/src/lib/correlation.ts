@@ -15,10 +15,12 @@ export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   [AssetCategory.Crypto]: 'Crypto',
   [AssetCategory.EquityIndex]: 'Equity index',
   [AssetCategory.Sector]: 'Sector',
+  [AssetCategory.Industry]: 'Industry',
   [AssetCategory.Stock]: 'Stock',
   [AssetCategory.Commodity]: 'Commodity',
   [AssetCategory.Currency]: 'Currency',
   [AssetCategory.Bond]: 'Bond',
+  [AssetCategory.Volatility]: 'Volatility',
 };
 
 /**
@@ -30,10 +32,12 @@ export const CATEGORY_COLOR: Record<AssetCategory, string> = {
   [AssetCategory.Crypto]: '#f2a65a',
   [AssetCategory.EquityIndex]: '#2ec2ae',
   [AssetCategory.Sector]: '#8b7cf6',
+  [AssetCategory.Industry]: '#4fb3a9',
   [AssetCategory.Stock]: '#5aa9e6',
   [AssetCategory.Commodity]: '#e8c547',
   [AssetCategory.Currency]: '#9aa7ab',
   [AssetCategory.Bond]: '#f28fb0',
+  [AssetCategory.Volatility]: '#d16b6b',
 };
 
 /** +0.87 / -0.42 / 0.00 — always signed, so the eye never has to infer direction from a bare number. */

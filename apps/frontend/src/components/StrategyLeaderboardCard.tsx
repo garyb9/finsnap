@@ -18,10 +18,12 @@ import { AssetCategory, WindowId } from '../types/enums';
 const CATEGORY_ORDER = [
   AssetCategory.EquityIndex,
   AssetCategory.Sector,
+  AssetCategory.Industry,
   AssetCategory.Crypto,
   AssetCategory.Commodity,
   AssetCategory.Currency,
   AssetCategory.Bond,
+  AssetCategory.Volatility,
   AssetCategory.Stock,
 ];
 

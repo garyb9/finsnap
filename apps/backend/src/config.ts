@@ -41,24 +41,31 @@ const configSchema = z.object({
   // Universe — comma-separated. Crypto trades 24/7, equities follow market hours.
   cryptoSymbols: z.string().default('BTC-USD'),
   /**
-   * Broad indices, the eleven sector SPDRs, commodities, the dollar and long
-   * bonds. Sector coverage is deliberately complete: a partial set would make
-   * the breadth reading a statement about which sectors were picked.
+   * Broad US and international indices, the eleven sector SPDRs, a couple of
+   * industry-level slices, commodities, currencies, credit, long bonds and a
+   * volatility proxy. Sector coverage is deliberately complete: a partial set
+   * would make the breadth reading a statement about which sectors were
+   * picked.
    */
   equitySymbols: z
     .string()
     .default(
-      'SPY,QQQ,DIA,IWM,' +
+      'SPY,QQQ,DIA,IWM,EEM,EFA,' +
         'XLK,XLF,XLE,XLV,XLI,XLY,XLP,XLU,XLB,XLRE,XLC,' +
-        'GLD,SLV,USO,UNG,UUP,TLT,IBIT'
+        'SMH,XPH,' +
+        'GLD,SLV,USO,UNG,UUP,FXE,FXY,LQD,HYG,TLT,VXX,IBIT'
     ),
 
   // Options chains are only pulled for this subset (Yahoo chains are slow to
   // page). The list is the liquid end of the universe: the four index proxies,
-  // the sectors that carry real open interest, and the metals/energy/rates
-  // instruments. The remaining sector ETFs trade options too, but thinly enough
+  // the sectors that carry real open interest, the metals/energy/rates
+  // instruments, and the handful of newer additions (emerging markets, high
+  // yield credit, VIX futures) whose options are liquid enough to be worth
+  // the fetch. The remaining sector ETFs trade options too, but thinly enough
   // that most expiries come back reading "thin" anyway.
-  optionsSymbols: z.string().default('SPY,QQQ,IWM,DIA,XLK,XLF,XLE,GLD,SLV,USO,TLT,IBIT'),
+  optionsSymbols: z
+    .string()
+    .default('SPY,QQQ,IWM,DIA,XLK,XLF,XLE,GLD,SLV,USO,TLT,EEM,HYG,VXX,IBIT'),
 
   // Backtest execution assumptions
   backtestCapital: z.coerce.number().positive().default(10_000),
