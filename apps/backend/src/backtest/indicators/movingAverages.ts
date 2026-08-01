@@ -66,3 +66,14 @@ export function rollingMax(values: number[], period: number): number[] {
   }
   return out;
 }
+
+/** Rolling minimum over the prior `period` bars, excluding the current bar. */
+export function rollingMin(values: number[], period: number): number[] {
+  const out = new Array<number>(values.length).fill(NaN);
+  for (let i = period; i < values.length; i++) {
+    let lo = Infinity;
+    for (let j = i - period; j < i; j++) if (values[j] < lo) lo = values[j];
+    out[i] = lo;
+  }
+  return out;
+}

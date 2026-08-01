@@ -73,11 +73,15 @@ function makeStrategy(id: string, overrides: Partial<StrategyReport> = {}): Stra
   };
 }
 
-function makeAsset(symbol: string, daily: StrategyReport[]): AssetOpportunity {
+function makeAsset(
+  symbol: string,
+  daily: StrategyReport[],
+  assetClass: AssetClass = AssetClass.Equity
+): AssetOpportunity {
   return {
     symbol,
     label: symbol,
-    assetClass: AssetClass.Equity,
+    assetClass,
     lastClose: 100,
     lastChangePct: 1,
     lastBarTime: Date.UTC(2026, 6, 27),
@@ -299,6 +303,50 @@ describe('buildLeaderboard', () => {
 
   it('returns a null benchmark when the report has no assets', () => {
     expect(buildLeaderboard(makeReport([])).benchmark).toBeNull();
+  });
+
+  it('pools win rate separately by asset class', () => {
+    const report = makeReport([
+      makeAsset(
+        'SPY',
+        [
+          makeStrategy('a', {
+            windows: [makeWindow(WindowId.Y1, { beatsBenchmark: true, excessCagrPct: 4 })],
+          }),
+        ],
+        AssetClass.Equity
+      ),
+      makeAsset(
+        'QQQ',
+        [
+          makeStrategy('a', {
+            windows: [makeWindow(WindowId.Y1, { beatsBenchmark: false, excessCagrPct: -2 })],
+          }),
+        ],
+        AssetClass.Equity
+      ),
+      makeAsset(
+        'BTC-USD',
+        [
+          makeStrategy('a', {
+            windows: [makeWindow(WindowId.Y1, { beatsBenchmark: true, excessCagrPct: 10 })],
+          }),
+        ],
+        AssetClass.Crypto
+      ),
+    ]);
+
+    const board = buildLeaderboard(report);
+    const row = board.rows.find((r) => r.strategyId === 'a')!;
+    const equity = row.byAssetClass.find((c) => c.assetClass === AssetClass.Equity)!;
+    const crypto = row.byAssetClass.find((c) => c.assetClass === AssetClass.Crypto)!;
+
+    expect(equity.assetsCovered).toBe(2);
+    expect(equity.winRatePct).toBe(50);
+    expect(equity.avgExcessCagrPct).toBe(1);
+    expect(crypto.assetsCovered).toBe(1);
+    expect(crypto.winRatePct).toBe(100);
+    expect(crypto.avgExcessCagrPct).toBe(10);
   });
 });
 

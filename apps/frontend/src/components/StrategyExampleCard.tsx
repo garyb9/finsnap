@@ -4,6 +4,7 @@ import { fmtPct } from '../lib/format';
 import type { GuideExample } from '../types/guide';
 import { StrategyKind } from '../types/enums';
 import { Formula } from './Formula';
+import { StrategyKindTag } from './StrategyKindTag';
 
 const Card = styled.div`
   display: flex;
@@ -117,6 +118,9 @@ const CompareTile = styled.div<{ $accent: boolean }>`
 `;
 
 const CompareTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.62rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -183,7 +187,10 @@ export function StrategyExampleCard({ example }: { example: GuideExample }) {
 
       <CompareGrid>
         <CompareTile $accent={!isBenchmark && strategyAhead}>
-          <CompareTitle>{isBenchmark ? 'Buy & hold' : example.name}</CompareTitle>
+          <CompareTitle>
+            {!isBenchmark && <StrategyKindTag kind={example.kind} />}
+            {isBenchmark ? 'Buy & hold' : example.name}
+          </CompareTitle>
           <CompareRow>
             <span>Total return</span>
             <CompareValue $color={changeTone(comparison.strategyTotalReturnPct)}>

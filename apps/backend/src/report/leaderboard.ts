@@ -11,6 +11,7 @@
  */
 
 import { StrategyKind, WindowId } from '../backtest/types';
+import { AssetClass } from '../constants/enums';
 import { DAILY_WINDOWS } from '../constants';
 import { round } from '../lib/math';
 import type { DailyReport } from './types';
@@ -27,6 +28,15 @@ export interface WindowLeaderboardCell {
   avgExcessCagrPct: number;
 }
 
+/** A strategy's record on one asset class, pooled across every window and every asset in that class. */
+export interface ClassLeaderboardCell {
+  assetClass: AssetClass;
+  /** How many assets of this class contributed a result */
+  assetsCovered: number;
+  winRatePct: number;
+  avgExcessCagrPct: number;
+}
+
 export interface StrategyLeaderboardRow {
   strategyId: string;
   name: string;
@@ -40,6 +50,10 @@ export interface StrategyLeaderboardRow {
   avgEdgeScore: number;
   /** Longest window first, matching the report's own ordering */
   perWindow: WindowLeaderboardCell[];
+  /** Same pooling, sliced by asset class instead of by window — equity crowds are much larger
+   * than crypto today, so a class with only one or two assets still appears, honestly labelled
+   * with its own `assetsCovered` rather than hidden. */
+  byAssetClass: ClassLeaderboardCell[];
 }
 
 /** Buy-and-hold's own realized return on one window — the bar every row above is measured against. */
@@ -125,6 +139,7 @@ interface Accumulator {
     WindowId,
     { label: string; assetsCovered: number; beats: number; excessCagrSum: number }
   >;
+  byClass: Map<AssetClass, { assets: Set<string>; beats: number; count: number; excessCagrSum: number }>;
 }
 
 function accumulate(report: DailyReport): Map<string, Accumulator> {
@@ -147,6 +162,7 @@ function accumulate(report: DailyReport): Map<string, Accumulator> {
           totalCount: 0,
           totalExcessCagrSum: 0,
           perWindow: new Map(),
+          byClass: new Map(),
         };
         accs.set(strategy.strategyId, acc);
       }
@@ -154,6 +170,13 @@ function accumulate(report: DailyReport): Map<string, Accumulator> {
       acc.assets.add(asset.symbol);
       acc.edgeScoreSum += strategy.edgeScore;
       acc.edgeScoreCount += 1;
+
+      let cAcc = acc.byClass.get(asset.assetClass);
+      if (!cAcc) {
+        cAcc = { assets: new Set(), beats: 0, count: 0, excessCagrSum: 0 };
+        acc.byClass.set(asset.assetClass, cAcc);
+      }
+      cAcc.assets.add(asset.symbol);
 
       for (const w of strategy.windows) {
         acc.totalBeats += w.beatsBenchmark ? 1 : 0;
@@ -168,6 +191,10 @@ function accumulate(report: DailyReport): Map<string, Accumulator> {
         wAcc.assetsCovered += 1;
         wAcc.beats += w.beatsBenchmark ? 1 : 0;
         wAcc.excessCagrSum += w.excessCagrPct;
+
+        cAcc.count += 1;
+        cAcc.beats += w.beatsBenchmark ? 1 : 0;
+        cAcc.excessCagrSum += w.excessCagrPct;
       }
     }
   }
@@ -196,6 +223,18 @@ function toRow(acc: Accumulator): StrategyLeaderboardRow {
         avgExcessCagrPct: round(w.excessCagrSum / w.assetsCovered),
       };
     }).filter((cell): cell is WindowLeaderboardCell => cell !== null),
+    byAssetClass: Object.values(AssetClass)
+      .map((assetClass): ClassLeaderboardCell | null => {
+        const c = acc.byClass.get(assetClass);
+        if (!c || c.count === 0) return null;
+        return {
+          assetClass,
+          assetsCovered: c.assets.size,
+          winRatePct: round((c.beats / c.count) * 100),
+          avgExcessCagrPct: round(c.excessCagrSum / c.count),
+        };
+      })
+      .filter((cell): cell is ClassLeaderboardCell => cell !== null),
   };
 }
 

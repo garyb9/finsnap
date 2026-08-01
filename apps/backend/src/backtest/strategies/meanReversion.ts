@@ -1,7 +1,19 @@
 import type { Bar } from '../../collectors/types';
-import { bollinger, closes, rsi, zscore } from '../indicators';
+import { bollinger, closes, rollingMax, rollingMin, rsi, zscore } from '../indicators';
 import { StrategyKind, type StrategyDef } from '../types';
 import { defined, stateMachine, whenTrue } from './helpers';
+
+/**
+ * Internal Bar Strength: where today's close landed inside today's own
+ * high-low range, 0 (pinned to the low) to 1 (pinned to the high). Unlike
+ * every other reversion measure here it needs no rolling window — a bar is
+ * compared against itself, not its history — so a flat range reads as
+ * neutral (0.5) rather than warming up to NaN.
+ */
+function ibs(bar: Bar): number {
+  const range = bar.high - bar.low;
+  return range > 0 ? (bar.close - bar.low) / range : 0.5;
+}
 
 /** Buy oversold, sell overbought. The textbook RSI swing rule. */
 export function rsiReversion(period: number, oversold: number, overbought: number): StrategyDef {
@@ -104,6 +116,63 @@ export function zscoreReversion(period: number, entryZ: number, exitZ: number): 
         bars.length,
         (i) => defined(z[i]) && z[i] <= -entryZ,
         (i) => defined(z[i]) && z[i] >= exitZ
+      );
+    },
+  };
+}
+
+/**
+ * Buy a close pinned to the bottom of its own day's range, exit one pinned to
+ * the top. `entry`/`exit` are IBS values on a 0-100 scale (10 = 0.10) so the
+ * id and params read like the other threshold-based reversion rules.
+ *
+ * A cult favourite in quant-blog backtests specifically because it needs no
+ * lookback at all — everything else in this file measures a close against its
+ * history, this measures a bar against itself.
+ */
+export function ibsReversion(entry: number, exit: number): StrategyDef {
+  return {
+    id: `ibs_reversion_${entry}_${exit}`,
+    name: `IBS Reversion (${entry}/${exit})`,
+    kind: StrategyKind.MeanReversion,
+    description:
+      `Buy when Internal Bar Strength — where the close sits in the day's own high-low range — ` +
+      `drops below ${entry / 100}, exit once it rises above ${exit / 100}.`,
+    params: { entry, exit },
+    warmup: 2,
+    signals(bars: Bar[]) {
+      return stateMachine(
+        bars.length,
+        (i) => ibs(bars[i]) * 100 < entry,
+        (i) => ibs(bars[i]) * 100 > exit
+      );
+    },
+  };
+}
+
+/**
+ * Buy a new `period`-day low on closing price, exit a new `period`-day high.
+ * Donchian trades the same shape of channel as a breakout signal — buy the
+ * high, exit the low; this is its mirror image, and it compares closes
+ * against their own rolling range rather than the intrabar high/low Donchian
+ * uses. Connors popularized the 7-day version as "the Double 7's."
+ */
+export function nDayLowReversion(period: number): StrategyDef {
+  return {
+    id: `n_day_low_reversion_${period}`,
+    name: `${period}-Day Low Reversion`,
+    kind: StrategyKind.MeanReversion,
+    description: `Buy a new ${period}-day closing low, exit a new ${period}-day closing high.`,
+    params: { period },
+    warmup: period + 1,
+    signals(bars: Bar[]) {
+      const price = closes(bars);
+      const low = rollingMin(price, period);
+      const high = rollingMax(price, period);
+      return stateMachine(
+        bars.length,
+        (i) => defined(low[i]) && price[i] <= low[i],
+        (i) => defined(high[i]) && price[i] >= high[i]
       );
     },
   };

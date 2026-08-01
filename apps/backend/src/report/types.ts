@@ -2,7 +2,7 @@ import type { OptionsSkewInsight } from '../analyzers/types';
 import type { AssetSize } from '../collectors/quote';
 import type { AssetClass } from '../config';
 import type { StrategyReport } from '../backtest/types';
-import { BarInterval, SignalAction, Verdict } from '../constants/enums';
+import { AssetCategory, BarInterval, SignalAction, StrategyKind, Verdict } from '../constants/enums';
 
 export { Verdict };
 
@@ -51,6 +51,8 @@ export interface AssetOpportunity {
   symbol: string;
   label: string;
   assetClass: AssetClass;
+  /** What the instrument gives you exposure to — finer-grained than `assetClass` */
+  category: AssetCategory;
   description?: string;
   lastClose: number;
   lastChangePct: number;
@@ -85,6 +87,7 @@ export interface Opportunity {
   label: string;
   strategyId: string;
   strategyName: string;
+  kind: StrategyKind;
   interval: BarInterval.Daily | BarInterval.Hourly;
   action: SignalAction.Enter | SignalAction.Exit;
   opportunityScore: number;

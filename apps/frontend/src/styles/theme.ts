@@ -28,6 +28,13 @@ export const theme = {
     accent: '#2ec2ae',
     accentSoft: 'rgba(46, 194, 174, 0.14)',
     accentHover: 'rgba(46, 194, 174, 0.10)',
+    // Strategy-kind tag colors — one hue per family, distinct from the
+    // success/warning/danger triad above since those already carry their own
+    // meaning (beats/loses, caution, etc.) everywhere a strategy's numbers show up.
+    kindTrend: '#60a5fa',
+    kindMomentum: '#c084fc',
+    kindBreakout: '#fb923c',
+    kindMeanReversion: '#f472b6',
     border: '#2a2a2a',
     borderLight: '#3a3a3a',
     borderSlate: 'rgba(148, 179, 184, 0.18)',

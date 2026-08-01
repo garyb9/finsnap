@@ -4,12 +4,21 @@ import { absoluteMomentum, chandelierTrend, donchianBreakout } from './breakout'
 import {
   bollingerBreakout,
   bollingerReversion,
+  ibsReversion,
+  nDayLowReversion,
   rsiReversion,
   rsiTrend,
   zscoreReversion,
 } from './meanReversion';
 import { emaCross, macdCross, priceAboveSma, smaCross, supertrendFollow } from './trend';
 import { tsmomTrend } from './tsmom';
+import {
+  adlTrend,
+  cmfTrend,
+  mfiReversion,
+  obvTrend,
+  volumeConfirmedBreakout,
+} from './volume';
 import type { Bar } from '../../collectors/types';
 
 /** Always long. The benchmark every other strategy is measured against. */
@@ -70,6 +79,15 @@ export const STRATEGIES: StrategyDef[] = [
   bollingerReversion(20, 2),
   bollingerReversion(20, 3),
   zscoreReversion(20, 2, 0),
+  ibsReversion(10, 90),
+  nDayLowReversion(7),
+
+  // Volume
+  obvTrend(20),
+  adlTrend(20),
+  cmfTrend(20, 0),
+  mfiReversion(14, 20, 80),
+  volumeConfirmedBreakout(20, 10, 20, 1),
 ];
 
 const BY_ID = new Map(STRATEGIES.map((s) => [s.id, s]));
@@ -90,3 +108,4 @@ export * from './breakout';
 export * from './meanReversion';
 export * from './trend';
 export * from './tsmom';
+export * from './volume';

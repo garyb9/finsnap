@@ -19,6 +19,7 @@ import {
 import { BarInterval, MetricId, SignalAction, SizeKind } from '../types/enums';
 import { nextSort, sortAssets, SortDir, SortKey } from '../lib/sortAssets';
 import { GuideLinkIcon } from './icons';
+import { StrategyKindTag } from './StrategyKindTag';
 
 type SortState = { key: SortKey; dir: SortDir };
 import { assetAnchor, strategyAnchor, type Guide, type GuideAsset } from '../types/guide';
@@ -655,6 +656,13 @@ const StrategyMeta = styled.div`
   min-width: 0;
 `;
 
+const StrategyTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+`;
+
 const StrategyTitle = styled(Link)`
   font-size: 0.74rem;
   color: ${theme.colors.textSlateLight};
@@ -736,6 +744,7 @@ function OrderEntry({ op, rank }: { op: Opportunity; rank: number }) {
         <OrderHead>
           <Verb $action={op.action}>{ACTION_LABEL[op.action]}</Verb>
           <Ticker>{op.label}</Ticker>
+          <StrategyKindTag kind={op.kind} />
           <StrategyName>{op.strategyName}</StrategyName>
           {op.interval === BarInterval.Hourly && <IntervalTag>1H</IntervalTag>}
         </OrderHead>
@@ -756,12 +765,15 @@ function StrategyEntry({ strategy }: { strategy: CompactStrategy }) {
   return (
     <StrategyLine>
       <StrategyMeta>
-        <StrategyTitle
-          href={`/guide#${strategyAnchor(strategy.id)}`}
-          title={`${strategy.rationale} — click for how this rule works`}
-        >
-          {strategy.name}
-        </StrategyTitle>
+        <StrategyTitleRow>
+          <StrategyKindTag kind={strategy.kind} />
+          <StrategyTitle
+            href={`/guide#${strategyAnchor(strategy.id)}`}
+            title={`${strategy.rationale} — click for how this rule works`}
+          >
+            {strategy.name}
+          </StrategyTitle>
+        </StrategyTitleRow>
         {h && (
           // Spelled out rather than abbreviated: "DD −57% vs −77%" is only
           // readable if you already know what the report is telling you.

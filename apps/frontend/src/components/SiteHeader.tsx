@@ -138,9 +138,10 @@ const Dim = styled.span`
 
 const TABS = [
   { href: '/', label: 'Dashboard' },
-  { href: '/technicals', label: 'Technicals' },
   { href: '/strategies', label: 'Strategies' },
+  { href: '/chart', label: 'Chart' },
   { href: '/options', label: 'Options' },
+  { href: '/technicals', label: 'Technicals' },
   { href: '/correlation', label: 'Correlation' },
   { href: '/guide', label: 'Guide' },
 ];

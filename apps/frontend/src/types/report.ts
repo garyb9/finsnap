@@ -103,6 +103,7 @@ export type Opportunity = {
   label: string;
   strategyId: string;
   strategyName: string;
+  kind: StrategyKind;
   interval: BarInterval;
   action: SignalAction.Enter | SignalAction.Exit;
   opportunityScore: number;

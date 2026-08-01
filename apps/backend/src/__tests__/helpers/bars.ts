@@ -58,6 +58,11 @@ export function risingCloses(count: number, start = 100, stepPct = 1): number[] 
   return out;
 }
 
+/** Overrides volume on each bar, positionally — for tests that need it to vary. */
+export function withVolume(bars: Bar[], volumes: number[]): Bar[] {
+  return bars.map((b, i) => ({ ...b, volume: volumes[i] ?? b.volume }));
+}
+
 /** A deterministic oscillating series, for mean-reversion rules. */
 export function oscillatingCloses(
   count: number,

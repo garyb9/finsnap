@@ -6,6 +6,7 @@ import { Page } from '../components/Page';
 import { LoadingStateContent } from '../components/LoadingState';
 import { SectionRail, type RailItem } from '../components/SectionRail';
 import { StrategyExampleCard } from '../components/StrategyExampleCard';
+import { StrategyKindTag } from '../components/StrategyKindTag';
 import { fetchGuide } from '../lib/api';
 import { StrategyKind } from '../types/enums';
 import {
@@ -510,14 +511,14 @@ function AssetEntry({ asset }: { asset: GuideAsset }) {
   );
 }
 
-function StrategyEntry({ strategy, family }: { strategy: GuideStrategy; family?: GuideFamily }) {
+function StrategyEntry({ strategy }: { strategy: GuideStrategy }) {
   return (
     <Entry id={strategyAnchor(strategy.id)}>
       <EntryHead>
-        <EntryName>{strategy.name}</EntryName>
         {/* Named on every entry, not just the group heading above it: arriving
             by deep link skips the heading entirely. */}
-        {family && <Tag>{family.label}</Tag>}
+        <StrategyKindTag kind={strategy.kind} />
+        <EntryName>{strategy.name}</EntryName>
         <EntrySub>needs {strategy.warmup} bars of history</EntrySub>
       </EntryHead>
       <Body>{strategy.description}</Body>
@@ -590,7 +591,7 @@ function FamilySection({
 
       {strategies.map((s) => (
         <div key={s.id} style={{ marginTop: 10 }}>
-          <StrategyEntry strategy={s} family={family} />
+          <StrategyEntry strategy={s} />
         </div>
       ))}
     </div>

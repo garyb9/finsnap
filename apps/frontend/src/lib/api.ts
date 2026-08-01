@@ -1,3 +1,4 @@
+import type { AssetReport } from '../types/assetReport';
 import type { CorrelationMatrix } from '../types/correlation';
 import type { FinSnap } from '../types/finsnap';
 import type { Guide } from '../types/guide';
@@ -39,6 +40,15 @@ export function fetchSnap(): Promise<FinSnap | null> {
  */
 export function fetchReport(): Promise<CompactReport | null> {
   return getJson<CompactReport>('/report?strategies=10');
+}
+
+/**
+ * Every strategy's full result for one asset — every lookback window, not
+ * just the compact report's top-N. Fetched on demand, symbol or label both
+ * work as the path param.
+ */
+export function fetchAssetReport(symbol: string): Promise<AssetReport | null> {
+  return getJson<AssetReport>(`/report/asset/${encodeURIComponent(symbol)}`);
 }
 
 export function fetchGuide(): Promise<Guide | null> {

@@ -1,9 +1,17 @@
-import type { StrategyKind, WindowId } from './enums';
+import type { AssetClass, StrategyKind, WindowId } from './enums';
 
 /** A strategy's record on one lookback window, pooled across every asset that ran it. */
 export type WindowLeaderboardCell = {
   window: WindowId;
   label: string;
+  assetsCovered: number;
+  winRatePct: number;
+  avgExcessCagrPct: number;
+};
+
+/** A strategy's record on one asset class, pooled across every window and every asset in that class. */
+export type ClassLeaderboardCell = {
+  assetClass: AssetClass;
   assetsCovered: number;
   winRatePct: number;
   avgExcessCagrPct: number;
@@ -18,6 +26,7 @@ export type StrategyLeaderboardRow = {
   overallAvgExcessCagrPct: number;
   avgEdgeScore: number;
   perWindow: WindowLeaderboardCell[];
+  byAssetClass: ClassLeaderboardCell[];
 };
 
 export type BenchmarkWindowCell = {

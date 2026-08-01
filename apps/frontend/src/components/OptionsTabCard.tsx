@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { CardTitle, ExpTableScroll, ExpTable } from './Card';
+import { OptionsFlowMap } from './OptionsFlowMap';
 import { OptionsOverview } from './OptionsOverview';
 import { fmtNum, fmtK } from '../lib/format';
 import {
@@ -307,6 +308,9 @@ function SortHead({
 
 // ---------- Component ----------
 
+/** Sentinel for the aggregate tab — distinct from any real ticker symbol. */
+const ALL_TAB = '__ALL__';
+
 interface Props {
   assets: AssetSnap[];
   /** Which wall glossary term is highlighted right now, shared with the page above. */
@@ -322,30 +326,42 @@ export function OptionsTabCard({ assets, hoveredKind, onHoverKind }: Props) {
   // are actually present.
   const firstSearched = withChains.findIndex((a) => a.searched);
   const showDivider = firstSearched > 0;
-  const [active, setActive] = useState(0);
+  // The aggregate view leads the tab order, but a single ticker is still the
+  // default landing view — "All" is there to be reached for, not opened onto.
+  const [active, setActive] = useState<string>(withChains[0]?.symbol ?? ALL_TAB);
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
 
-  const asset = withChains[Math.min(active, Math.max(0, withChains.length - 1))];
+  const isAll = active === ALL_TAB;
+  const asset = withChains.find((a) => a.symbol === active) ?? withChains[0];
   const expirations = useMemo(() => asset?.options?.expirations ?? [], [asset]);
   const summary = useMemo(() => summarizeChain(expirations), [expirations]);
   const rows = useMemo(() => sortExpirations(expirations, sort), [expirations, sort]);
 
-  if (withChains.length === 0 || !asset) return null;
+  if (withChains.length === 0) return null;
 
-  const data = {
-    price: asset.options?.price ?? asset.currentPrice,
-    expirations,
-  };
+  const data = asset
+    ? {
+        price: asset.options?.price ?? asset.currentPrice,
+        expirations,
+      }
+    : null;
 
   return (
     <Wrap>
       <Header>
         <CardTitle style={{ margin: 0, whiteSpace: 'nowrap' }}>Options</CardTitle>
         <TabBar>
+          <Tab $active={isAll} onClick={() => setActive(ALL_TAB)}>
+            All
+          </Tab>
+          <TabDivider />
           {withChains.map((a, i) => (
             <Fragment key={a.symbol}>
               {showDivider && i === firstSearched && <TabDivider />}
-              <Tab $active={a.symbol === asset.symbol} onClick={() => setActive(i)}>
+              <Tab
+                $active={!isAll && a.symbol === asset?.symbol}
+                onClick={() => setActive(a.symbol)}
+              >
                 {a.label}
               </Tab>
             </Fragment>
@@ -353,130 +369,141 @@ export function OptionsTabCard({ assets, hoveredKind, onHoverKind }: Props) {
         </TabBar>
       </Header>
 
-      <PriceRow>
-        <PriceNum>${fmtNum(data.price, 2)}</PriceNum>
-        <TickerLabel>{asset.label}</TickerLabel>
-      </PriceRow>
+      {isAll ? (
+        <OptionsFlowMap assets={withChains} />
+      ) : !asset || !data ? null : (
+        <>
+          <PriceRow>
+            <PriceNum>${fmtNum(data.price, 2)}</PriceNum>
+            <TickerLabel>{asset.label}</TickerLabel>
+          </PriceRow>
 
-      {asset.description && <Description>{asset.description}</Description>}
+          {asset.description && <Description>{asset.description}</Description>}
 
-      {data.expirations.length > 0 && (
-        <OptionsOverview
-          summary={summary}
-          expirations={data.expirations}
-          spot={data.price}
-          hoveredKind={hoveredKind}
-          onHoverKind={onHoverKind}
-        />
-      )}
+          {data.expirations.length > 0 && (
+            <OptionsOverview
+              summary={summary}
+              expirations={data.expirations}
+              spot={data.price}
+              hoveredKind={hoveredKind}
+              onHoverKind={onHoverKind}
+            />
+          )}
 
-      <Body>
-        {data.expirations.length === 0 ? (
-          <NoData>No expirations available</NoData>
-        ) : (
-          <ExpTableScroll>
-            <ExpTable>
-              <thead>
-                <tr>
-                  <SortHead
-                    label="Expiry"
-                    sortKey="date"
-                    sort={sort}
-                    onSort={setSort}
-                    hint="Contract expiry date"
-                  />
-                  <SortHead
-                    label="P/C"
-                    sortKey="pcRatio"
-                    sort={sort}
-                    onSort={setSort}
-                    hint="Put volume divided by call volume — above 1 means more puts traded"
-                  />
-                  <SortHead
-                    label="Call Strike"
-                    sortKey="callStrike"
-                    sort={sort}
-                    onSort={setSort}
-                    hint="Volume-weighted mean call strike, ± one weighted standard deviation"
-                  />
-                  <SortHead label="Call Vol" sortKey="callVolume" sort={sort} onSort={setSort} />
-                  <SortHead label="Call OI" sortKey="callOI" sort={sort} onSort={setSort} />
-                  <SortHead
-                    label="Put Strike"
-                    sortKey="putStrike"
-                    sort={sort}
-                    onSort={setSort}
-                    hint="Volume-weighted mean put strike, ± one weighted standard deviation"
-                  />
-                  <SortHead label="Put Vol" sortKey="putVolume" sort={sort} onSort={setSort} />
-                  <SortHead label="Put OI" sortKey="putOI" sort={sort} onSort={setSort} />
-                  <SortHead
-                    label="Wall"
-                    sortKey="wall"
-                    sort={sort}
-                    onSort={setSort}
-                    hint="Sorts by how close the wall sits to spot; expiries without one go last"
-                  />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((exp) => {
-                  const insightLabel = exp.insight?.label;
-                  const isSoft =
-                    insightLabel === OptionsSkewLabel.SoftCall ||
-                    insightLabel === OptionsSkewLabel.SoftPut;
-                  const side: OptionsSide =
-                    insightLabel === OptionsSkewLabel.CallStack || isSoft
-                      ? insightLabel === OptionsSkewLabel.SoftPut
-                        ? OptionsSide.Puts
-                        : OptionsSide.Calls
-                      : insightLabel === OptionsSkewLabel.PutStack
-                        ? OptionsSide.Puts
-                        : OptionsSide.None;
-                  return (
-                    <tr key={exp.date}>
-                      <td>
-                        <DateCell>
-                          {exp.date}
-                          <DaysOut title={`${shortDate(exp.date)} — days from today`}>
-                            {daysToExpiry(exp.date)}d
-                          </DaysOut>
-                        </DateCell>
-                      </td>
-                      <td
-                        style={{
-                          color: exp.pcRatio > 1 ? theme.colors.danger : theme.colors.success,
-                        }}
-                      >
-                        {exp.pcRatio.toFixed(2)}
-                      </td>
-                      <td>
-                        ${fmtNum(exp.calls.weightedMeanStrike, 2)}{' '}
-                        <span style={{ color: theme.colors.label }}>
-                          ±{fmtNum(exp.calls.weightedStdStrike, 2)}
-                        </span>
-                      </td>
-                      <td>{fmtK(exp.calls.totalVolume)}</td>
-                      <td>{fmtK(exp.calls.totalOI)}</td>
-                      <td>
-                        ${fmtNum(exp.puts.weightedMeanStrike, 2)}{' '}
-                        <span style={{ color: theme.colors.label }}>
-                          ±{fmtNum(exp.puts.weightedStdStrike, 2)}
-                        </span>
-                      </td>
-                      <td>{fmtK(exp.puts.totalVolume)}</td>
-                      <td>{fmtK(exp.puts.totalOI)}</td>
-                      <InsightCell $side={side} $soft={isSoft}>
-                        <InsightContent insight={exp.insight} />
-                      </InsightCell>
+          <Body>
+            {data.expirations.length === 0 ? (
+              <NoData>No expirations available</NoData>
+            ) : (
+              <ExpTableScroll>
+                <ExpTable>
+                  <thead>
+                    <tr>
+                      <SortHead
+                        label="Expiry"
+                        sortKey="date"
+                        sort={sort}
+                        onSort={setSort}
+                        hint="Contract expiry date"
+                      />
+                      <SortHead
+                        label="P/C"
+                        sortKey="pcRatio"
+                        sort={sort}
+                        onSort={setSort}
+                        hint="Put volume divided by call volume — above 1 means more puts traded"
+                      />
+                      <SortHead
+                        label="Call Strike"
+                        sortKey="callStrike"
+                        sort={sort}
+                        onSort={setSort}
+                        hint="Volume-weighted mean call strike, ± one weighted standard deviation"
+                      />
+                      <SortHead
+                        label="Call Vol"
+                        sortKey="callVolume"
+                        sort={sort}
+                        onSort={setSort}
+                      />
+                      <SortHead label="Call OI" sortKey="callOI" sort={sort} onSort={setSort} />
+                      <SortHead
+                        label="Put Strike"
+                        sortKey="putStrike"
+                        sort={sort}
+                        onSort={setSort}
+                        hint="Volume-weighted mean put strike, ± one weighted standard deviation"
+                      />
+                      <SortHead label="Put Vol" sortKey="putVolume" sort={sort} onSort={setSort} />
+                      <SortHead label="Put OI" sortKey="putOI" sort={sort} onSort={setSort} />
+                      <SortHead
+                        label="Wall"
+                        sortKey="wall"
+                        sort={sort}
+                        onSort={setSort}
+                        hint="Sorts by how close the wall sits to spot; expiries without one go last"
+                      />
                     </tr>
-                  );
-                })}
-              </tbody>
-            </ExpTable>
-          </ExpTableScroll>
-        )}
-      </Body>
+                  </thead>
+                  <tbody>
+                    {rows.map((exp) => {
+                      const insightLabel = exp.insight?.label;
+                      const isSoft =
+                        insightLabel === OptionsSkewLabel.SoftCall ||
+                        insightLabel === OptionsSkewLabel.SoftPut;
+                      const side: OptionsSide =
+                        insightLabel === OptionsSkewLabel.CallStack || isSoft
+                          ? insightLabel === OptionsSkewLabel.SoftPut
+                            ? OptionsSide.Puts
+                            : OptionsSide.Calls
+                          : insightLabel === OptionsSkewLabel.PutStack
+                            ? OptionsSide.Puts
+                            : OptionsSide.None;
+                      return (
+                        <tr key={exp.date}>
+                          <td>
+                            <DateCell>
+                              {exp.date}
+                              <DaysOut title={`${shortDate(exp.date)} — days from today`}>
+                                {daysToExpiry(exp.date)}d
+                              </DaysOut>
+                            </DateCell>
+                          </td>
+                          <td
+                            style={{
+                              color: exp.pcRatio > 1 ? theme.colors.danger : theme.colors.success,
+                            }}
+                          >
+                            {exp.pcRatio.toFixed(2)}
+                          </td>
+                          <td>
+                            ${fmtNum(exp.calls.weightedMeanStrike, 2)}{' '}
+                            <span style={{ color: theme.colors.label }}>
+                              ±{fmtNum(exp.calls.weightedStdStrike, 2)}
+                            </span>
+                          </td>
+                          <td>{fmtK(exp.calls.totalVolume)}</td>
+                          <td>{fmtK(exp.calls.totalOI)}</td>
+                          <td>
+                            ${fmtNum(exp.puts.weightedMeanStrike, 2)}{' '}
+                            <span style={{ color: theme.colors.label }}>
+                              ±{fmtNum(exp.puts.weightedStdStrike, 2)}
+                            </span>
+                          </td>
+                          <td>{fmtK(exp.puts.totalVolume)}</td>
+                          <td>{fmtK(exp.puts.totalOI)}</td>
+                          <InsightCell $side={side} $soft={isSoft}>
+                            <InsightContent insight={exp.insight} />
+                          </InsightCell>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </ExpTable>
+              </ExpTableScroll>
+            )}
+          </Body>
+        </>
+      )}
     </Wrap>
   );
 }

@@ -1,5 +1,5 @@
 import { theme } from '../styles/theme';
-import { SignalAction, StrategyKind, Verdict } from '../types/enums';
+import { AssetClass, SignalAction, StrategyKind, Verdict } from '../types/enums';
 
 export function fmtNum(n: number, decimals = 1): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: decimals });
@@ -155,6 +155,20 @@ export const STRATEGY_KIND_LABEL: Record<StrategyKind, string> = {
   [StrategyKind.Momentum]: 'Momentum',
   [StrategyKind.Breakout]: 'Breakout',
   [StrategyKind.MeanReversion]: 'Mean Reversion',
+};
+
+/** One color per strategy family, used by `StrategyKindTag` everywhere a strategy name shows up. */
+export const STRATEGY_KIND_COLOR: Record<StrategyKind, string> = {
+  [StrategyKind.Benchmark]: theme.colors.label,
+  [StrategyKind.Trend]: theme.colors.kindTrend,
+  [StrategyKind.Momentum]: theme.colors.kindMomentum,
+  [StrategyKind.Breakout]: theme.colors.kindBreakout,
+  [StrategyKind.MeanReversion]: theme.colors.kindMeanReversion,
+};
+
+export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
+  [AssetClass.Equity]: 'Equities',
+  [AssetClass.Crypto]: 'Crypto',
 };
 
 export const ACTION_COLOR: Record<SignalAction, string> = {

@@ -3,7 +3,12 @@ import { applicableStrategies, buyAndHold, getStrategy, STRATEGIES } from '../ba
 import { StrategyKind } from '../backtest/types';
 import { stateMachine, whenTrue, defined } from '../backtest/strategies/helpers';
 import { emaCross, priceAboveSma, smaCross } from '../backtest/strategies/trend';
-import { bollingerReversion, rsiReversion } from '../backtest/strategies/meanReversion';
+import {
+  bollingerReversion,
+  ibsReversion,
+  nDayLowReversion,
+  rsiReversion,
+} from '../backtest/strategies/meanReversion';
 import { absoluteMomentum, donchianBreakout } from '../backtest/strategies/breakout';
 import { barsFromCloses, oscillatingCloses, risingCloses } from './helpers/bars';
 
@@ -144,6 +149,30 @@ describe('mean-reversion strategies', () => {
     // A long calm stretch then a sharp drop pushes price outside the band.
     const bars = barsFromCloses([...Array(60).fill(100), 70]);
     expect(bollingerReversion(20, 2).signals(bars).at(-1)).toBe(1);
+  });
+
+  it('ibs reversion buys a close pinned to its own low', () => {
+    // barsFromCloses sets the bar's low to min(open, close) — a falling day's
+    // close always lands exactly on the low, so IBS is 0 throughout.
+    const bars = barsFromCloses(risingCloses(30, 100, 0.5).reverse());
+    expect(ibsReversion(10, 90).signals(bars).at(-1)).toBe(1);
+  });
+
+  it('ibs reversion exits a close pinned to its own high', () => {
+    const bars = barsFromCloses(risingCloses(30, 100, 0.5));
+    expect(ibsReversion(10, 90).signals(bars).at(-1)).toBe(0);
+  });
+
+  it('n-day low reversion buys a fresh closing low', () => {
+    const bars = barsFromCloses(risingCloses(30, 100, 0.5).reverse());
+    expect(nDayLowReversion(7).signals(bars).at(-1)).toBe(1);
+  });
+
+  it('n-day low reversion never enters a steadily rising market', () => {
+    // Every close is a fresh high, never a fresh low — the entry condition
+    // can't fire, so the strategy stays flat throughout.
+    const bars = barsFromCloses(risingCloses(30, 100, 0.5));
+    expect(nDayLowReversion(7).signals(bars).every((s) => s === 0)).toBe(true);
   });
 });
 

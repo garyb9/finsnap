@@ -1,13 +1,15 @@
 import { PERIODS_PER_YEAR } from '../constants/time';
 import { runBacktest, runBuyAndHold } from './engine';
 import { SPY_DAILY_SAMPLE, SPY_DAILY_SAMPLE_META } from './fixtures';
-import { bollinger, closes, donchian, roc, sma } from './indicators';
+import { bollinger, closes, donchian, obv, roc, sma } from './indicators';
 import {
   absoluteMomentum,
   bollingerBreakout,
   bollingerReversion,
   buyAndHold,
   donchianBreakout,
+  ibsReversion,
+  obvTrend,
   rsiReversion,
   smaCross,
 } from './strategies';
@@ -530,12 +532,137 @@ function buildRsiReversion(): StrategyExample {
   };
 }
 
+// ── Mean reversion: IBS Reversion (10/90) ───────────────────────────────────
+
+/** Where a bar's own close sits in its own high-low range — mirrors `strategies/meanReversion.ts`. */
+function ibsOf(bar: (typeof bars)[number]): number {
+  const range = bar.high - bar.low;
+  return range > 0 ? (bar.close - bar.low) / range : 0.5;
+}
+
+function buildIbsReversion(): StrategyExample {
+  const entry = 10;
+  const exit = 90;
+  const strategy = ibsReversion(entry, exit);
+
+  // A fresh pin to the bottom of the day's range, not a continuation of one already there.
+  const idx = bars.findIndex(
+    (bar, i) => i > 1 && ibsOf(bar) * 100 < entry && ibsOf(bars[i - 1]) * 100 >= entry
+  );
+
+  const bar = bars[idx];
+  const range = bar.high - bar.low;
+  const ibsValue = ibsOf(bar);
+
+  return {
+    strategyId: strategy.id,
+    name: strategy.name,
+    kind: StrategyKind.MeanReversion,
+    description: strategy.description,
+    dataset,
+    ruleFormula:
+      '\\text{IBS}(t) = \\frac{C_t - L_t}{H_t - L_t} \\qquad ' +
+      `\\text{Buy} \\iff \\text{IBS}(t) < ${entry / 100} \\qquad \\text{Sell} \\iff \\text{IBS}(t) > ${exit / 100}`,
+    exampleDate: dateOf(idx),
+    steps: [
+      {
+        label: "The day's own range, and where the close landed inside it",
+        formula: `H_t = ${money(bar.high)}, \\quad L_t = ${money(bar.low)}, \\quad C_t = ${money(bar.close)}`,
+        result: `range ${money(range)}`,
+      },
+      {
+        label: 'Internal Bar Strength',
+        formula: `\\text{IBS}(t) = \\frac{${money(bar.close)} - ${money(bar.low)}}{${money(bar.high)} - ${money(bar.low)}}`,
+        result: num(ibsValue, 3),
+      },
+      {
+        label: 'Against the entry line',
+        formula: `\\text{IBS}(t) = ${num(ibsValue, 3)} \\;<\\; ${entry / 100}`,
+        result: 'Buy from the next open',
+      },
+      {
+        label: 'Where it sells — the same measure, on whichever future bar clears it',
+        formula: `\\text{IBS}(t) \\;>\\; ${exit / 100}`,
+        result: `Sell once a close pins to the top ${100 - exit}% of its own day's range`,
+      },
+    ],
+    explanation:
+      `${dateOf(idx)} closed at ${num(ibsValue, 2)} of the way up its own high-low range — deep in ` +
+      `the bottom decile — so the strategy buys the next open on the bet that a close pinned to the ` +
+      `floor of its own bar tends to bounce. Unlike every other reversion rule on this page it needs ` +
+      `no history at all: the signal is a property of one bar, not a comparison against an average or ` +
+      `a channel built from many of them.`,
+    comparison: compare(strategy.signals(bars)),
+  };
+}
+
+// ── Trend: OBV Trend 20 ──────────────────────────────────────────────────────
+
+function buildObvTrend(): StrategyExample {
+  const period = 20;
+  const strategy = obvTrend(period);
+  const line = obv(bars);
+  const average = sma(line, period);
+
+  // A fresh cross back above the line's own average, not a continuation of one already above it.
+  const idx = line.findIndex(
+    (v, i) =>
+      i > period + 1 &&
+      Number.isFinite(average[i]) &&
+      Number.isFinite(average[i - 1]) &&
+      v > average[i] &&
+      line[i - 1] <= average[i - 1]
+  );
+
+  const bar = bars[idx];
+  const prevClose = bars[idx - 1].close;
+  const rising = bar.close > prevClose;
+
+  return {
+    strategyId: strategy.id,
+    name: strategy.name,
+    kind: StrategyKind.Trend,
+    description: strategy.description,
+    dataset,
+    ruleFormula:
+      '\\text{OBV}(t) = \\text{OBV}(t-1) + \\text{sign}(C_t - C_{t-1})\\, V_t \\qquad ' +
+      `\\text{Long} \\iff \\text{OBV}(t) > \\text{SMA}_{${period}}(\\text{OBV})(t)`,
+    exampleDate: dateOf(idx),
+    steps: [
+      {
+        label: `Today's close against yesterday's sets the sign, then today's volume is added to yesterday's running total`,
+        formula: `\\text{OBV}(t) = \\text{OBV}(t-1) ${rising ? '+' : '-'} V_t = ${num(line[idx - 1], 0)} ${rising ? '+' : '-'} ${num(bar.volume, 0)}`,
+        result: num(line[idx], 0),
+      },
+      {
+        label: `${period}-bar average of the OBV line itself, not of price`,
+        formula: `\\text{SMA}_{${period}}(\\text{OBV})(t)`,
+        result: num(average[idx], 0),
+      },
+      {
+        label: 'Compare the running total to its own average',
+        formula: `\\text{OBV}(t) = ${num(line[idx], 0)} \\;>\\; \\text{SMA}_{${period}}(\\text{OBV})(t) = ${num(average[idx], 0)}`,
+        result: 'Long from the next open',
+      },
+    ],
+    explanation:
+      `On ${dateOf(idx)} the running volume total crossed back above its own ${period}-bar average — ` +
+      `volume on up days has outweighed volume on down days over the last month, not just the last ` +
+      `bar. Every other trend rule on this page averages price; this one averages a line built purely ` +
+      `from ${dataset.symbol}'s own volume, so it can agree or disagree with what price is doing — ` +
+      `volume confirming a move is a different claim than price making one.`,
+    comparison: compare(strategy.signals(bars)),
+  };
+}
+
 export const STRATEGY_EXAMPLES: StrategyExample[] = [
   buildBuyAndHold(),
   buildSmaCross(),
+  buildObvTrend(),
   buildAbsoluteMomentum(),
   buildDonchianBreakout(),
   buildBollingerBreakout(),
   buildRsiReversion(),
   buildBollingerReversion(),
+  buildIbsReversion(),
 ];

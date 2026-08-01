@@ -72,7 +72,9 @@ describe('STRATEGY_EXAMPLES registry', () => {
     expect(byKind.get(StrategyKind.MeanReversion)).toEqual([
       'rsi_reversion_14_30_70',
       'bb_reversion_20_2',
+      'ibs_reversion_10_90',
     ]);
+    expect(byKind.get(StrategyKind.Trend)).toEqual(['sma_cross_50_200', 'obv_trend_20']);
   });
 
   it('has no duplicate strategy ids', () => {

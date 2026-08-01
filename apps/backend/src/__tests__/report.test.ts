@@ -119,6 +119,7 @@ function makeReport(overrides: Partial<DailyReport> = {}): DailyReport {
         label: 'BTC',
         strategyId: 'sma_cross_50_200',
         strategyName: 'SMA Cross 50/200',
+        kind: StrategyKind.Trend,
         interval: BarInterval.Daily,
         action: SignalAction.Enter,
         opportunityScore: 78,

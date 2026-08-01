@@ -11,3 +11,4 @@ export * from './bands';
 export * from './movingAverages';
 export * from './oscillators';
 export * from './volatility';
+export * from './volume';
