@@ -50,6 +50,14 @@ const MAX_DAYS_OUT = 90;
 /** Safety cap once a chain has more weeklies inside that horizon than are worth plotting at once. */
 const MAX_POINTS_PER_TICKER = 16;
 
+/**
+ * VXX's walls sit far from every equity/commodity chain's percent range —
+ * its line runs almost flat near the top of the axis and drags the shared
+ * scale with it, crowding out the names the reader actually came to compare.
+ * Off by default; the checkbox below the chart opts back in.
+ */
+const VOLATILITY_SYMBOL = 'VXX';
+
 const VIEW_W = 1160;
 const VIEW_H = 340;
 const PAD = { top: 20, right: 100, bottom: 44, left: 46 };
@@ -480,6 +488,21 @@ const PriceLabel = styled.text<{ $color: string }>`
   pointer-events: none;
 `;
 
+const VxxToggleRow = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 6px 0 0;
+  font-size: 0.66rem;
+  color: ${theme.colors.textMuted};
+  cursor: pointer;
+
+  &:hover {
+    color: ${theme.colors.textSlate};
+  }
+`;
+
 // ---------- Compare table ----------
 
 const CompareSection = styled.div`
@@ -609,10 +632,22 @@ export function OptionsFlowMap({ assets }: { assets: AssetSnap[] }) {
   const [tip, setTip] = useState<Tip | null>(null);
   const [chainSort, setChainSort] = useState<ChainSort>(DEFAULT_CHAIN_SORT);
   const [viewMode, setViewMode] = useState<ViewMode>('percent');
+  // Off by default — see VOLATILITY_SYMBOL. Chart only; the compare table
+  // below still lists every featured chain regardless of this toggle.
+  const [showVxx, setShowVxx] = useState(false);
   const active = pinned ?? hovered;
   const togglePin = (symbol: string) => setPinned((cur) => (cur === symbol ? null : symbol));
 
-  const series = useMemo(() => buildSeries(assets), [assets]);
+  const allSeries = useMemo(() => buildSeries(assets), [assets]);
+  const hasVxx = useMemo(() => allSeries.some((s) => s.symbol === VOLATILITY_SYMBOL), [allSeries]);
+  const series = useMemo(() => {
+    const rest = allSeries.filter((s) => s.symbol !== VOLATILITY_SYMBOL);
+    if (!showVxx) return rest;
+    // Tacked on at the end of the legend/render order rather than wherever
+    // it falls in the asset list — it's an opt-in extra, not a peer.
+    const vxx = allSeries.filter((s) => s.symbol === VOLATILITY_SYMBOL);
+    return [...rest, ...vxx];
+  }, [allSeries, showVxx]);
   const chainRows = useMemo(() => buildChainRows(assets), [assets]);
   const sortedChainRows = useMemo(
     () => sortChainRows(chainRows, chainSort),
@@ -917,6 +952,13 @@ export function OptionsFlowMap({ assets }: { assets: AssetSnap[] }) {
           );
         })}
       </Svg>
+
+      {hasVxx && (
+        <VxxToggleRow>
+          <input type="checkbox" checked={showVxx} onChange={(e) => setShowVxx(e.target.checked)} />
+          Show {VOLATILITY_SYMBOL} (volatility proxy, often skews the scale)
+        </VxxToggleRow>
+      )}
 
       <CompareSection>
         <CompareTitle>Chain comparison</CompareTitle>
