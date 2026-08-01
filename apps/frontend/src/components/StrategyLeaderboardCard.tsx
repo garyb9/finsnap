@@ -502,7 +502,13 @@ type CategoryLeader = { row: StrategyLeaderboardRow; cell: CategoryLeaderboardCe
  * honestly labelled with its own asset count rather than hidden behind a
  * coverage floor.
  */
-function ClassColumnBody({ category, leaders }: { category: AssetCategory; leaders: CategoryLeader[] }) {
+function ClassColumnBody({
+  category,
+  leaders,
+}: {
+  category: AssetCategory;
+  leaders: CategoryLeader[];
+}) {
   return (
     <ClassColumn>
       <ClassColumnTitle>{CATEGORY_LABEL[category]}</ClassColumnTitle>
@@ -606,7 +612,8 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
         .filter((x): x is CategoryLeader => x.cell !== undefined)
         .sort(
           (a, b) =>
-            b.cell.winRatePct - a.cell.winRatePct || b.cell.avgExcessCagrPct - a.cell.avgExcessCagrPct
+            b.cell.winRatePct - a.cell.winRatePct ||
+            b.cell.avgExcessCagrPct - a.cell.avgExcessCagrPct
         )
         .slice(0, CATEGORY_TOP_N);
 
@@ -668,8 +675,8 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
           <span>share of assets that beat holding</span>
           <span>·</span>
           <span>
-            green/red ranks the field at that horizon, best to worst — not a signal a green cell beat
-            buy &amp; hold outright
+            green/red ranks the field at that horizon, best to worst — not a signal a green cell
+            beat buy &amp; hold outright
           </span>
           <span>·</span>
           <span>
@@ -763,7 +770,9 @@ export function StrategyLeaderboardCard({ board }: { board: StrategyLeaderboard 
           <SectionLabel>
             <span>Best by category</span>
             <Legend>
-              <span>ranked the same way as Overall, pooled within the category instead of the universe</span>
+              <span>
+                ranked the same way as Overall, pooled within the category instead of the universe
+              </span>
             </Legend>
           </SectionLabel>
           <ClassGrid>

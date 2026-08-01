@@ -9,7 +9,7 @@ import type { Bar } from '../../collectors/types';
  */
 function moneyFlowMultiplier(bar: Bar): number {
   const range = bar.high - bar.low;
-  return range > 0 ? ((bar.close - bar.low) - (bar.high - bar.close)) / range : 0;
+  return range > 0 ? (bar.close - bar.low - (bar.high - bar.close)) / range : 0;
 }
 
 /**

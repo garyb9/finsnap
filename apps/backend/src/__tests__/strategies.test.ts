@@ -152,7 +152,9 @@ describe('momentum and breakout strategies', () => {
     // so no bar ever qualifies as a fresh squeeze low, and the rule stays flat.
     const bars = barsFromCloses(risingCloses(200, 100, 1));
     expect(
-      volatilitySqueezeBreakout(10, 2, 20, 5).signals(bars).every((s) => s === 0)
+      volatilitySqueezeBreakout(10, 2, 20, 5)
+        .signals(bars)
+        .every((s) => s === 0)
     ).toBe(true);
   });
 });
@@ -192,7 +194,11 @@ describe('mean-reversion strategies', () => {
     // Every close is a fresh high, never a fresh low — the entry condition
     // can't fire, so the strategy stays flat throughout.
     const bars = barsFromCloses(risingCloses(30, 100, 0.5));
-    expect(nDayLowReversion(7).signals(bars).every((s) => s === 0)).toBe(true);
+    expect(
+      nDayLowReversion(7)
+        .signals(bars)
+        .every((s) => s === 0)
+    ).toBe(true);
   });
 });
 

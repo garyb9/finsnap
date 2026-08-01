@@ -28,7 +28,11 @@ const Pill = styled.span<{ $color: string }>`
 
 export function StrategyKindTag({ kind, className }: { kind: StrategyKind; className?: string }) {
   return (
-    <Pill $color={STRATEGY_KIND_COLOR[kind]} className={className} title={STRATEGY_KIND_LABEL[kind]}>
+    <Pill
+      $color={STRATEGY_KIND_COLOR[kind]}
+      className={className}
+      title={STRATEGY_KIND_LABEL[kind]}
+    >
       {STRATEGY_KIND_LABEL[kind]}
     </Pill>
   );

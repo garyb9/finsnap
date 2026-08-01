@@ -2,7 +2,13 @@ import type { OptionsSkewInsight } from '../analyzers/types';
 import type { AssetSize } from '../collectors/quote';
 import type { AssetClass } from '../config';
 import type { StrategyReport } from '../backtest/types';
-import { AssetCategory, BarInterval, SignalAction, StrategyKind, Verdict } from '../constants/enums';
+import {
+  AssetCategory,
+  BarInterval,
+  SignalAction,
+  StrategyKind,
+  Verdict,
+} from '../constants/enums';
 
 export { Verdict };
 

@@ -111,12 +111,16 @@ function markerScale(notional: number, min: number, max: number): number {
 
 function fmtAxisTick(v: number, mode: ViewMode): string {
   const sign = v >= 0 ? '+' : '-';
-  return mode === 'price' ? `${sign}$${Math.abs(v).toFixed(0)}` : `${sign}${Math.abs(v).toFixed(0)}%`;
+  return mode === 'price'
+    ? `${sign}$${Math.abs(v).toFixed(0)}`
+    : `${sign}${Math.abs(v).toFixed(0)}%`;
 }
 
 function fmtPointValue(v: number, mode: ViewMode): string {
   const sign = v >= 0 ? '+' : '-';
-  return mode === 'price' ? `${sign}$${Math.abs(v).toFixed(2)}` : `${sign}${Math.abs(v).toFixed(1)}%`;
+  return mode === 'price'
+    ? `${sign}$${Math.abs(v).toFixed(2)}`
+    : `${sign}${Math.abs(v).toFixed(1)}%`;
 }
 
 function sideGlyph(side: Wall['side']): string {
@@ -421,7 +425,12 @@ const Line = styled.path<{ $color: string; $highlighted: boolean; $dimmed: boole
   pointer-events: none;
 `;
 
-const Marker = styled.text<{ $color: string; $soft: boolean; $highlighted: boolean; $scale: number }>`
+const Marker = styled.text<{
+  $color: string;
+  $soft: boolean;
+  $highlighted: boolean;
+  $scale: number;
+}>`
   font-size: ${({ $highlighted, $scale }) => ($highlighted ? 15 : 12) * $scale}px;
   fill: ${({ $color }) => $color};
   opacity: ${({ $soft, $highlighted }) => ($highlighted ? 1 : $soft ? 0.55 : 1)};
@@ -862,13 +871,19 @@ export function OptionsFlowMap({ assets }: { assets: AssetSnap[] }) {
                     $color={s.color}
                     $soft={p.soft}
                     $highlighted={highlighted}
-                    $scale={viewMode === 'notional' ? markerScale(notionalOf(p), 0, notionalMax) : 1}
+                    $scale={
+                      viewMode === 'notional' ? markerScale(notionalOf(p), 0, notionalMax) : 1
+                    }
                     style={{ pointerEvents: 'none' }}
                   >
                     {sideGlyph(p.side)}
                   </Marker>
                   {highlighted && (
-                    <PriceLabel x={xOf(p.t)} y={yOf(p.value) + (p.value >= 0 ? -13 : 16)} $color={s.color}>
+                    <PriceLabel
+                      x={xOf(p.t)}
+                      y={yOf(p.value) + (p.value >= 0 ? -13 : 16)}
+                      $color={s.color}
+                    >
                       ${fmtNum(p.strike, 2)} ({fmtPointValue(p.value, viewMode)})
                     </PriceLabel>
                   )}

@@ -17,13 +17,7 @@ import {
 } from './meanReversion';
 import { emaCross, macdCross, priceAboveSma, smaCross, supertrendFollow } from './trend';
 import { tsmomTrend } from './tsmom';
-import {
-  adlTrend,
-  cmfTrend,
-  mfiReversion,
-  obvTrend,
-  volumeConfirmedBreakout,
-} from './volume';
+import { adlTrend, cmfTrend, mfiReversion, obvTrend, volumeConfirmedBreakout } from './volume';
 import type { Bar } from '../../collectors/types';
 
 /** Always long. The benchmark every other strategy is measured against. */

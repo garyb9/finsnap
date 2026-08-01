@@ -102,7 +102,11 @@ describe('volume-confirmed breakout', () => {
     // the only thing that can be holding this one flat.
     const bars = barsFromCloses(risingCloses(60, 100, 1));
     expect(donchianBreakout(20, 10).signals(bars).at(-1)).toBe(1);
-    expect(volumeConfirmedBreakout(20, 10, 20, 1).signals(bars).every((s) => s === 0)).toBe(true);
+    expect(
+      volumeConfirmedBreakout(20, 10, 20, 1)
+        .signals(bars)
+        .every((s) => s === 0)
+    ).toBe(true);
   });
 
   it('enters once a breakout bar actually comes on a volume spike', () => {
