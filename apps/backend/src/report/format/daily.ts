@@ -1,8 +1,9 @@
 import { preBlock } from '../../lib/format';
-import { compactAsset, type CompactAsset } from '../compact';
+import { compactAsset, compactPair, type CompactAsset } from '../compact';
 import type { DailyReport } from '../types';
 import { formatAssetDetailLines, formatAssetSummaryLines } from './asset';
 import { formatOpportunityLines } from './opportunity';
+import { formatPairsSection } from './pair';
 
 const NO_ACTIONS = 'No fresh entries or exits from strategies with an edge.';
 
@@ -62,6 +63,9 @@ export function formatDailyReport(report: DailyReport): string[] {
   for (const asset of assets.filter(isNoteworthy)) {
     messages.push(preBlock(formatAssetDetailLines(asset)));
   }
+
+  const pairLines = formatPairsSection(report.pairs.map(compactPair));
+  if (pairLines.length > 0) messages.push(preBlock(pairLines));
 
   return messages;
 }

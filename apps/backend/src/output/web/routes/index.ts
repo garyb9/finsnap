@@ -3,6 +3,7 @@ import { requireToken } from '../auth';
 import { registerCorrelationRoutes } from './correlation';
 import { registerGuideRoutes } from './guide';
 import { registerHealthRoutes } from './health';
+import { registerPairsRoutes } from './pairs';
 import { registerReportRoutes } from './report';
 import { registerRootRoutes } from './root';
 import { registerSnapRoutes } from './snap';
@@ -33,6 +34,7 @@ const REGISTRARS: RouteRegistrar[] = [
   registerReportRoutes,
   registerStrategyRoutes,
   registerCorrelationRoutes,
+  registerPairsRoutes,
   registerGuideRoutes,
   registerSyncRoutes,
   registerTelegramRoutes,

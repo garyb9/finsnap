@@ -168,6 +168,28 @@ export enum OptionsSide {
   None = 'none',
 }
 
+/**
+ * Health of a pair's cointegrating relationship, re-checked daily.
+ *
+ * A binary on/off would create a cliff the day a rolling p-value ticks over
+ * a threshold; `Warning` is the buffer between "trade normally" and "stand
+ * aside" — hold what's open, open nothing new, watch closely.
+ */
+export enum PairRegimeStatus {
+  Active = 'active',
+  Warning = 'warning',
+  Halted = 'halted',
+}
+
+/** Which side of a pair's spread a position is on. */
+export enum SpreadDirection {
+  /** Long legA / short legB — betting the spread rises back toward its mean. */
+  LongSpread = 'long_spread',
+  /** Short legA / long legB — betting the spread falls back toward its mean. */
+  ShortSpread = 'short_spread',
+  Flat = 'flat',
+}
+
 /** Direction of a moving average or EMA over a short lookback. */
 export enum Trajectory {
   Rising = 'rising',

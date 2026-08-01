@@ -9,8 +9,12 @@ import type { OptionsStore } from '../storage/optionsStore';
 import { analyzeOptionsChain } from '../analyzers/options';
 import { analyzeAssetBars } from '../analyzers/price';
 import { analyzeTsmom } from '../analyzers/tsmom';
+import { alignBars, scanPairs } from '../analyzers/pairs';
 import { backtestAsset, dropIncompleteBar, type ExecutionOptions } from '../backtest/runner';
+import { evaluatePair } from '../backtest/pairsRunner';
 import { SignalAction, StrategyKind, type StrategyReport } from '../backtest/types';
+import type { PairReport } from '../backtest/pairsTypes';
+import type { Bar } from '../collectors/types';
 import { BarInterval } from '../collectors/types';
 import {
   ACTIONABLE_EDGE,
@@ -20,7 +24,9 @@ import {
   MAX_TOP_OPPORTUNITIES,
   MIN_BARS_FOR_BACKTEST,
   PERCENT_B_BANDS,
+  PERIODS_PER_YEAR,
 } from '../constants';
+import { CANDIDATE_PAIRS } from '../constants/pairs';
 import { Timeframe } from '../constants/enums';
 import { fmtPct, isoDate, pickBand } from '../lib/format';
 import { buildNotes, computeConsensus } from './consensus';
@@ -56,6 +62,11 @@ export class ReportBuilder {
     };
 
     const assets: AssetOpportunity[] = [];
+    // Populated alongside `assets` below and reused for pair scanning after
+    // the loop — every candidate pair's legs are already part of the
+    // universe, so this is the same daily bars already fetched, not a
+    // second round of data collection.
+    const dailyBarsBySymbol = new Map<string, Bar[]>();
     let backtestsRun = 0;
     let strategiesRun = 0;
 
@@ -65,7 +76,12 @@ export class ReportBuilder {
 
     for (const spec of this.config.universe) {
       try {
-        const asset = await this.buildAsset(spec, execution, sizes.get(spec.symbol.toUpperCase()));
+        const asset = await this.buildAsset(
+          spec,
+          execution,
+          dailyBarsBySymbol,
+          sizes.get(spec.symbol.toUpperCase())
+        );
         if (!asset) continue;
         assets.push(asset);
         strategiesRun += asset.daily.length + asset.intraday.length;
@@ -83,6 +99,7 @@ export class ReportBuilder {
 
     const topOpportunities = collectOpportunities(assets);
     const latestBar = Math.max(...assets.map((a) => a.lastBarTime));
+    const pairs = this.buildPairs(dailyBarsBySymbol, execution);
 
     const report: DailyReport = {
       id: ulid(),
@@ -92,6 +109,7 @@ export class ReportBuilder {
       execution,
       assets,
       topOpportunities,
+      pairs: pairs.reports,
       summary: {
         assetsAnalyzed: assets.length,
         strategiesRun,
@@ -101,21 +119,51 @@ export class ReportBuilder {
         avgConsensus: Math.round(assets.reduce((s, a) => s + a.consensus.score, 0) / assets.length),
         bullishAssets: assets.filter((a) => a.consensus.score >= BULLISH_CONSENSUS).length,
         bearishAssets: assets.filter((a) => a.consensus.score < BEARISH_CONSENSUS).length,
+        pairsScanned: pairs.scanned,
+        pairsCointegrated: pairs.reports.length,
       },
     };
 
     log.info(
       `report ${report.id} — ${report.summary.assetsAnalyzed} assets, ` +
         `${report.summary.backtestsRun} backtests, ${report.summary.freshEntries} fresh entries, ` +
-        `${report.summary.freshExits} exits, breadth ${report.summary.avgConsensus}/100`
+        `${report.summary.freshExits} exits, breadth ${report.summary.avgConsensus}/100, ` +
+        `${report.summary.pairsCointegrated}/${report.summary.pairsScanned} pairs cointegrated`
     );
 
     return report;
   }
 
+  /** Scan every candidate pair whose legs got a usable daily series this run, and backtest the ones that pass. */
+  private buildPairs(
+    dailyBarsBySymbol: Map<string, Bar[]>,
+    execution: ExecutionOptions
+  ): { reports: PairReport[]; scanned: number } {
+    const candidates = scanPairs(dailyBarsBySymbol, CANDIDATE_PAIRS);
+    const reports: PairReport[] = [];
+
+    for (const candidate of candidates) {
+      if (!candidate.cointegrated) continue;
+
+      try {
+        const aligned = alignBars(
+          dailyBarsBySymbol.get(candidate.legA)!,
+          dailyBarsBySymbol.get(candidate.legB)!
+        );
+        const report = evaluatePair(candidate, aligned, execution, PERIODS_PER_YEAR.equityDaily);
+        if (report) reports.push(report);
+      } catch (err) {
+        log.error(`${candidate.legA}/${candidate.legB}: pair backtest failed (continuing): ${err}`);
+      }
+    }
+
+    return { reports, scanned: candidates.length };
+  }
+
   private async buildAsset(
     spec: AssetSpec,
     execution: ExecutionOptions,
+    dailyBarsBySymbol: Map<string, Bar[]>,
     size?: AssetSize
   ): Promise<AssetOpportunity | null> {
     const symbolBars = await this.bars.fetchSymbol(spec.symbol);
@@ -127,6 +175,7 @@ export class ReportBuilder {
 
     const daily = dropIncompleteBar(symbolBars.daily);
     const hourly = symbolBars.hourly ? dropIncompleteBar(symbolBars.hourly) : null;
+    dailyBarsBySymbol.set(spec.symbol, daily.bars);
 
     const dailyResult = backtestAsset(spec, daily, execution);
     if (!dailyResult) return null;

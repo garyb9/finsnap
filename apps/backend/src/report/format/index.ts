@@ -10,4 +10,5 @@
 export * from './asset';
 export * from './daily';
 export * from './opportunity';
+export * from './pair';
 export * from './strategy';

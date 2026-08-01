@@ -117,6 +117,7 @@ function makeReport(assets: AssetOpportunity[]): DailyReport {
     execution: { initialCapital: 10_000, feeBps: 5, slippageBps: 5 },
     assets,
     topOpportunities: [],
+    pairs: [],
     summary: {
       assetsAnalyzed: assets.length,
       strategiesRun: 20,
@@ -126,6 +127,8 @@ function makeReport(assets: AssetOpportunity[]): DailyReport {
       avgConsensus: 60,
       bullishAssets: 0,
       bearishAssets: 0,
+      pairsScanned: 0,
+      pairsCointegrated: 0,
     },
   };
 }

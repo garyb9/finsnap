@@ -143,6 +143,7 @@ const TABS = [
   { href: '/options', label: 'Options' },
   { href: '/technicals', label: 'Technicals' },
   { href: '/correlation', label: 'Correlation' },
+  { href: '/pairs', label: 'Pairs' },
   { href: '/guide', label: 'Guide' },
 ];
 

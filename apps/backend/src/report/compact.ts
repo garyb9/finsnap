@@ -14,6 +14,12 @@ import {
   type WindowId,
   type WindowResult,
 } from '../backtest/types';
+import type {
+  PairReport,
+  PairRegimeStatus,
+  PairWindowResult,
+  SpreadDirection,
+} from '../backtest/pairsTypes';
 import { HEADLINE_WINDOWS, YEAR_MS } from '../constants';
 import { round } from '../lib/math';
 import type { AssetClass } from '../config';
@@ -82,6 +88,30 @@ export interface CompactAsset {
   top: CompactStrategy[];
 }
 
+export interface CompactPairWindow {
+  window: WindowId;
+  label: string;
+  sharpe: number;
+  totalReturnPct: number;
+  maxDrawdownPct: number;
+  numTrades: number;
+}
+
+export interface CompactPair {
+  pairId: string;
+  legA: string;
+  legB: string;
+  rationale: string;
+  hedgeRatio: number;
+  halfLifeDays: number;
+  pValue: number;
+  regimeStatus: PairRegimeStatus;
+  direction: SpreadDirection;
+  currentZ: number;
+  barsInState: number;
+  headline: CompactPairWindow | null;
+}
+
 export interface CompactReport {
   id: string;
   date: string;
@@ -89,6 +119,7 @@ export interface CompactReport {
   summary: DailyReport['summary'];
   topOpportunities: DailyReport['topOpportunities'];
   assets: CompactAsset[];
+  pairs: CompactPair[];
 }
 
 function pickHeadline(windows: WindowResult[]): CompactWindow | null {
@@ -157,6 +188,38 @@ export function compactAsset(asset: AssetOpportunity, topN = 5): CompactAsset {
   };
 }
 
+function pickPairHeadline(windows: PairWindowResult[]): CompactPairWindow | null {
+  const chosen =
+    HEADLINE_WINDOWS.map((id) => windows.find((w) => w.window === id)).find(Boolean) ?? windows[0];
+  if (!chosen) return null;
+
+  return {
+    window: chosen.window,
+    label: chosen.label,
+    sharpe: round(chosen.stats.sharpe, 2),
+    totalReturnPct: round(chosen.stats.totalReturnPct),
+    maxDrawdownPct: round(chosen.stats.maxDrawdownPct),
+    numTrades: chosen.stats.numTrades,
+  };
+}
+
+export function compactPair(report: PairReport): CompactPair {
+  return {
+    pairId: report.pairId,
+    legA: report.legA,
+    legB: report.legB,
+    rationale: report.rationale,
+    hedgeRatio: round(report.hedgeRatio, 3),
+    halfLifeDays: round(report.halfLifeDays, 1),
+    pValue: round(report.pValue, 4),
+    regimeStatus: report.regimeStatus,
+    direction: report.signal.direction,
+    currentZ: round(report.signal.currentZ, 2),
+    barsInState: report.signal.barsInState,
+    headline: pickPairHeadline(report.windows),
+  };
+}
+
 export function compactReport(report: DailyReport, topN = 5): CompactReport {
   return {
     id: report.id,
@@ -165,5 +228,6 @@ export function compactReport(report: DailyReport, topN = 5): CompactReport {
     summary: report.summary,
     topOpportunities: report.topOpportunities,
     assets: report.assets.map((a) => compactAsset(a, topN)),
+    pairs: report.pairs.map(compactPair),
   };
 }

@@ -130,6 +130,7 @@ function makeReport(overrides: Partial<DailyReport> = {}): DailyReport {
         rationale: 'fires a fresh entry — strong historical edge',
       },
     ],
+    pairs: [],
     summary: {
       assetsAnalyzed: 1,
       strategiesRun: 20,
@@ -139,6 +140,8 @@ function makeReport(overrides: Partial<DailyReport> = {}): DailyReport {
       avgConsensus: 74,
       bullishAssets: 1,
       bearishAssets: 0,
+      pairsScanned: 0,
+      pairsCointegrated: 0,
     },
     ...overrides,
   };

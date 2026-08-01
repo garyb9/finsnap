@@ -2,6 +2,7 @@ import type { OptionsSkewInsight } from '../analyzers/types';
 import type { AssetSize } from '../collectors/quote';
 import type { AssetClass } from '../config';
 import type { StrategyReport } from '../backtest/types';
+import type { PairReport } from '../backtest/pairsTypes';
 import {
   AssetCategory,
   BarInterval,
@@ -116,6 +117,8 @@ export interface DailyReport {
   assets: AssetOpportunity[];
   /** Fresh entries and exits across the whole universe, strongest first */
   topOpportunities: Opportunity[];
+  /** Candidate pairs that passed cointegration testing and are being monitored/traded */
+  pairs: PairReport[];
   summary: {
     assetsAnalyzed: number;
     strategiesRun: number;
@@ -126,6 +129,10 @@ export interface DailyReport {
     avgConsensus: number;
     bullishAssets: number;
     bearishAssets: number;
+    /** Candidate pairs tested for cointegration this run */
+    pairsScanned: number;
+    /** Of those, how many passed and are being monitored/traded */
+    pairsCointegrated: number;
   };
 }
 

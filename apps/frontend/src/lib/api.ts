@@ -3,6 +3,7 @@ import type { CorrelationMatrix } from '../types/correlation';
 import type { FinSnap } from '../types/finsnap';
 import type { Guide } from '../types/guide';
 import type { StrategyLeaderboard } from '../types/leaderboard';
+import type { PairsResponse } from '../types/pairs';
 import type { CompactReport } from '../types/report';
 import type { SyncJob } from '../types/sync';
 
@@ -63,6 +64,11 @@ export function fetchStrategyLeaderboard(): Promise<StrategyLeaderboard | null> 
 /** Pairwise price correlation across the universe, over the given lookback window. */
 export function fetchCorrelation(windowId: string): Promise<CorrelationMatrix | null> {
   return getJson<CorrelationMatrix>(`/correlation?window=${encodeURIComponent(windowId)}`);
+}
+
+/** Candidate pairs that currently pass cointegration testing — derives from the latest report. */
+export function fetchPairs(): Promise<PairsResponse | null> {
+  return getJson<PairsResponse>('/pairs');
 }
 
 export function fetchSyncStatus(): Promise<SyncJob | null> {

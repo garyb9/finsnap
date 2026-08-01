@@ -134,3 +134,17 @@ export enum FeedStatus {
   Stale = 'STALE',
   Offline = 'OFFLINE',
 }
+
+/** Health of a pair's cointegrating relationship, re-checked daily. */
+export enum PairRegimeStatus {
+  Active = 'active',
+  Warning = 'warning',
+  Halted = 'halted',
+}
+
+/** Which side of a pair's spread a position is on. */
+export enum SpreadDirection {
+  LongSpread = 'long_spread',
+  ShortSpread = 'short_spread',
+  Flat = 'flat',
+}
