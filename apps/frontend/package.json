@@ -2,6 +2,7 @@
   "name": "@monorepo/frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "NODE_ENV=production next build",
@@ -19,11 +20,13 @@
     "styled-components": "^6.3.11"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@types/katex": "^0.16.8",
     "@types/node": "^22.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/styled-components": "^5.1.36",
+    "eslint-config-next": "15.4.10",
     "typescript": "^5.3.3"
   }
 }
