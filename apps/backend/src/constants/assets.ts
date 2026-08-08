@@ -195,8 +195,19 @@ export const ASSET_INFO: Record<string, AssetInfo> = {
     caveat: 'Created in 2018 when the sector was redefined; history before then does not exist.',
   },
 
-  // ── Industry (narrower than a GICS sector — one slice worth watching on its
-  // own rather than folded into the parent sector's average) ────────────────
+  // ── Industry (a slice worth watching on its own rather than folded into a
+  // sector's average — usually narrower than the GICS sector, though VNQ runs
+  // the other way: a broader real-estate basket alongside the single-sector
+  // XLRE) ─────────────────────────────────────────────────────────────────
+  VNQ: {
+    name: 'Vanguard Real Estate ETF',
+    shortName: 'Real Estate (Broad)',
+    category: AssetCategory.Industry,
+    blurb:
+      'The MSCI US REIT index — roughly five times as many holdings as XLRE, and less ' +
+      'concentrated in the handful of mega-cap towers and data centres that dominate the S&P ' +
+      "sector fund. The broader read on real estate; XLRE is the S&P 500's version of it.",
+  },
   SMH: {
     name: 'VanEck Semiconductor ETF',
     shortName: 'Semiconductors',
