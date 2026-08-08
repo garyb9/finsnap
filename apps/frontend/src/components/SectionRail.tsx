@@ -80,10 +80,10 @@ const Rail = styled.nav`
   }
 
   position: sticky;
-  top: calc(${theme.headerHeight} + 24px);
+  top: 24px;
   flex: none;
   width: 208px;
-  max-height: calc(100vh - ${theme.headerHeight} - 48px);
+  max-height: calc(100vh - 48px);
   overflow-y: auto;
   padding-left: 18px;
   border-left: 1px solid ${theme.colors.borderSlate};

@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { Page } from '../components/Page';
 import { MainContainer } from '../components/MainContainer';
-import { LoadingStateContent } from '../components/LoadingState';
+import { TechnicalsSkeleton } from '../components/skeletons/TechnicalsSkeleton';
 import { useFinSnapData } from '../lib/dataContext';
 import { changeColor, fmtMoneyShort, fmtPct, fmtPrice, scoreColor } from '../lib/format';
 import { SizeKind, Timeframe } from '../types/enums';
@@ -314,7 +314,9 @@ export default function TechnicalsPage() {
   if (loading && !snap) {
     return (
       <Page>
-        <LoadingStateContent />
+        <MainContainer>
+          <TechnicalsSkeleton />
+        </MainContainer>
       </Page>
     );
   }

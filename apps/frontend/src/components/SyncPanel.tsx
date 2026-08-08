@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styled, { css } from 'styled-components';
 import { spin } from '../styles/keyframes';
 import { theme } from '../styles/theme';
-import { useSync } from '../lib/useSync';
+import { useFinSnapData } from '../lib/dataContext';
 import { BarInterval } from '../types/enums';
 import { SyncPhase, SyncStage, SyncState, type SyncStep } from '../types/sync';
 
@@ -47,44 +48,50 @@ function latencyColor(ms: number): string {
 
 // ---------- Styled ----------
 
-/**
- * Docked into the header row rather than floating above it.
- *
- * The control belongs visually to the header, so its button is centred on the
- * same baseline as the wordmark and tabs: half the header height, less half the
- * button's own height.
- */
 const TOGGLE_HEIGHT = 34;
 
-const Dock = styled.div`
+/** Mobile-only fallback — `>= md` the sidebar's compact trigger takes over. */
+const StandaloneDock = styled.div`
   position: fixed;
-  top: calc((${theme.headerHeight} - ${TOGGLE_HEIGHT}px) / 2);
-  /*
-   * Aligned to the header's centred container, not to the viewport edge.
-   * The header is capped at ${theme.maxWidth.dashboard} and centred, so pinning
-   * this to the window left a growing gap between the live-status readout and
-   * this button on any screen wider than that cap.
-   */
-  right: max(22px, calc((100vw - ${theme.maxWidth.dashboard}) / 2 + 22px));
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: min(400px, calc(100vw - 32px));
+  top: calc(${theme.headerHeight} + 8px);
+  right: 10px;
+  z-index: ${theme.zIndex.syncDock};
 
-  @media (max-width: ${theme.breakpoints.md}) {
-    right: 10px;
+  @media (min-width: ${theme.breakpoints.md}) {
+    display: none;
   }
 `;
 
 /**
- * The docked control. Opens the panel — it does not start a sync.
- *
- * Firing a multi-minute job straight off the toolbar button was too easy to do
- * by accident; the trigger now lives inside the panel where it can be labelled
- * with what it actually does.
+ * Portaled to `document.body` (see the render below) — nesting a `position:
+ * fixed` element inside the sidebar would scope it to the sidebar's own box,
+ * since the sidebar's `backdrop-filter` makes it a containing block, and the
+ * sidebar's `overflow: auto` would then clip anything positioned past its
+ * own width. Anchored past the sidebar's width rather than overlapping it,
+ * since the sidebar's background is dark and blurred too.
  */
+const PanelDock = styled.div<{ $compact: boolean }>`
+  position: fixed;
+  z-index: ${theme.zIndex.syncDock};
+  max-width: min(400px, calc(100vw - 32px));
+
+  ${({ $compact }) =>
+    $compact
+      ? css`
+          bottom: 0;
+          left: calc(var(--sidebar-width, 240px) + 12px);
+        `
+      : css`
+          top: calc(${theme.headerHeight} + 8px + ${TOGGLE_HEIGHT}px + 10px);
+          right: 10px;
+
+          @media (min-width: ${theme.breakpoints.md}) {
+            display: none;
+          }
+        `}
+`;
+
+/** Opens the panel — starting a sync is a separate, explicit button inside it. */
 const Toggle = styled.button<{ $busy: boolean; $open: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -110,6 +117,34 @@ const Toggle = styled.button<{ $busy: boolean; $open: boolean }>`
   &:hover {
     border-color: ${theme.colors.accent};
     color: ${theme.colors.accent};
+  }
+`;
+
+/** Icon-only trigger for the sidebar footer, sitting inline next to the freshness readout. */
+const CompactToggle = styled.button<{ $busy: boolean; $open: boolean }>`
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  color: ${({ $busy, $open }) => ($busy || $open ? theme.colors.accent : theme.colors.label)};
+  background: ${({ $busy, $open }) => ($busy || $open ? theme.colors.accentHover : 'transparent')};
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    color: ${theme.colors.accent};
+    background: ${theme.colors.accentHover};
+  }
+
+  svg {
+    width: 13px;
+    height: 13px;
   }
 `;
 
@@ -393,17 +428,27 @@ function StepEntry({ step, active, now }: { step: SyncStep; active: boolean; now
 
 // ---------- Component ----------
 
+export interface SyncPanelProps {
+  /** Icon-only trigger for the sidebar footer (`>= md`) instead of the labelled corner pill. */
+  compact?: boolean;
+}
+
 /**
- * Manual refresh, docked to the top-right corner.
+ * Manual refresh.
  *
- * The toolbar button only opens and closes the panel — starting a sync takes a
+ * The trigger only opens and closes the panel — starting a sync takes a
  * second, deliberate click on the button inside, because the job runs for
  * minutes and hammers an upstream API that rate-limits. The panel opens by
  * itself when a run starts (including one started from another tab) so the
  * progress is never hidden, and can be closed at any time, mid-run included.
  */
-export function SyncPanel() {
-  const { job, running, starting, trigger } = useSync();
+export function SyncPanel({ compact = false }: SyncPanelProps) {
+  const {
+    syncJob: job,
+    syncRunning: running,
+    syncStarting: starting,
+    triggerSync: trigger,
+  } = useFinSnapData();
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const wasRunning = useRef(false);
@@ -429,8 +474,20 @@ export function SyncPanel() {
   const elapsed = job ? (job.elapsedMs / 1000).toFixed(1) : '0.0';
   const phase = job?.phase ?? SyncPhase.Done;
 
-  return (
-    <Dock>
+  const toggle = compact ? (
+    <CompactToggle
+      type="button"
+      $busy={busy}
+      $open={open}
+      onClick={() => setOpen((v) => !v)}
+      aria-expanded={open}
+      aria-label={busy ? PHASE_HINT[phase] : 'Open sync'}
+      title={busy && job ? `${PHASE_HINT[phase]} — ${pct}%` : 'Sync'}
+    >
+      <Refresh busy={busy} />
+    </CompactToggle>
+  ) : (
+    <StandaloneDock>
       <Toggle
         $busy={busy}
         $open={open}
@@ -441,62 +498,71 @@ export function SyncPanel() {
         <Refresh busy={busy} />
         {busy && job ? `${pct}%` : 'Sync'}
       </Toggle>
+    </StandaloneDock>
+  );
 
-      {open && (
-        <Panel>
-          <PanelHead>
-            <Phase>{hasJob ? PHASE_LABEL[phase] : 'Sync'}</Phase>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {hasJob && (
-                <Counter>
-                  {job!.completed}/{job!.total} · {pct}%
-                </Counter>
-              )}
-              <CloseButton type="button" onClick={() => setOpen(false)} aria-label="Close">
-                ×
-              </CloseButton>
-            </div>
-          </PanelHead>
+  const panel = (
+    <PanelDock $compact={compact}>
+      <Panel>
+        <PanelHead>
+          <Phase>{hasJob ? PHASE_LABEL[phase] : 'Sync'}</Phase>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {hasJob && (
+              <Counter>
+                {job!.completed}/{job!.total} · {pct}%
+              </Counter>
+            )}
+            <CloseButton type="button" onClick={() => setOpen(false)} aria-label="Close">
+              ×
+            </CloseButton>
+          </div>
+        </PanelHead>
 
-          {hasJob && <Track $pct={pct} />}
+        {hasJob && <Track $pct={pct} />}
 
-          {!hasJob && <Hint>{PHASE_HINT[SyncPhase.Done]}</Hint>}
+        {!hasJob && <Hint>{PHASE_HINT[SyncPhase.Done]}</Hint>}
 
-          {hasJob && (
-            <StepList>
-              {job!.steps.map((step) => (
-                <StepEntry
-                  key={step.symbol}
-                  step={step}
-                  active={job!.current === step.symbol}
-                  now={now}
-                />
-              ))}
-            </StepList>
-          )}
+        {hasJob && (
+          <StepList>
+            {job!.steps.map((step) => (
+              <StepEntry
+                key={step.symbol}
+                step={step}
+                active={job!.current === step.symbol}
+                now={now}
+              />
+            ))}
+          </StepList>
+        )}
 
-          {job?.error && <Failure>{job.error}</Failure>}
+        {job?.error && <Failure>{job.error}</Failure>}
 
-          <Actions>
-            <RunButton
-              $busy={busy}
-              disabled={busy}
-              onClick={() => void trigger()}
-              title={PHASE_HINT[SyncPhase.Done]}
-            >
-              <Refresh busy={busy} />
-              {busy ? 'Syncing…' : hasJob ? 'Sync again' : 'Start sync'}
-            </RunButton>
-          </Actions>
+        <Actions>
+          <RunButton
+            $busy={busy}
+            disabled={busy}
+            onClick={() => void trigger()}
+            title={PHASE_HINT[SyncPhase.Done]}
+          >
+            <Refresh busy={busy} />
+            {busy ? 'Syncing…' : hasJob ? 'Sync again' : 'Start sync'}
+          </RunButton>
+        </Actions>
 
-          {hasJob && (
-            <Footer>
-              <span>{elapsed}s elapsed</span>
-              <span>{failed ? 'failed' : running ? 'running' : 'complete'}</span>
-            </Footer>
-          )}
-        </Panel>
-      )}
-    </Dock>
+        {hasJob && (
+          <Footer>
+            <span>{elapsed}s elapsed</span>
+            <span>{failed ? 'failed' : running ? 'running' : 'complete'}</span>
+          </Footer>
+        )}
+      </Panel>
+    </PanelDock>
+  );
+
+  return (
+    <>
+      {toggle}
+      {open && createPortal(panel, document.body)}
+    </>
   );
 }

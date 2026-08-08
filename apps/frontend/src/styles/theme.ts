@@ -88,16 +88,37 @@ export const theme = {
     dashboard: '1400px',
   },
   /**
-   * Height of the sticky SiteHeader. Anything else that sticks to the top, or
-   * that a deep link scrolls to, has to clear it — hard-coding the number in
-   * several places is how one of them silently ends up underneath.
+   * Height of the mobile top bar (`MobileTopBar`), shown only below `md` now
+   * that navigation lives in a left sidebar on larger screens. Anything that
+   * sticks to the top on mobile, or that a deep link scrolls to, has to clear
+   * it — hard-coding the number in several places is how one of them silently
+   * ends up underneath.
    */
   headerHeight: '46px',
+  /** Width of the left sidebar in its expanded and collapsed states. */
+  sidebarWidth: '240px',
+  sidebarWidthCollapsed: '64px',
   breakpoints: {
     sm: '640px',
     md: '768px',
     lg: '1024px',
     xl: '1280px',
+  },
+  /**
+   * Chrome that sits above ordinary page content, in ascending order of "must
+   * win": the persistent sidebar, then in-page popovers (search results,
+   * dropdown panels), the docked sync control, chart tooltips (must always be
+   * readable over a card), and finally anything Radix portals to
+   * `document.body` — command palette, mobile nav drawer, toasts — which
+   * renders outside every other stacking context and would otherwise land
+   * beneath the bands above by accident.
+   */
+  zIndex: {
+    sidebar: 30,
+    popover: 41,
+    syncDock: 40,
+    tooltip: 100,
+    overlay: 900,
   },
 };
 

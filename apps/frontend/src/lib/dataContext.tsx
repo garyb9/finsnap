@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { fetchGuide, fetchReport, fetchSnap, fetchStrategyLeaderboard } from './api';
 import { useSync } from './useSync';
-import { SyncState } from '../types/sync';
+import { SyncState, type SyncJob } from '../types/sync';
 import type { FinSnap } from '../types/finsnap';
 import type { Guide } from '../types/guide';
 import type { StrategyLeaderboard } from '../types/leaderboard';
@@ -31,6 +31,11 @@ interface FinSnapData {
   lastFetched: Date | null;
   /** Re-fetch snap, report and leaderboard right away, without waiting for the next poll. */
   refresh: () => Promise<void>;
+  /** Server sync job — read from here rather than calling `useSync()` again, which would start a second poll loop. */
+  syncJob: SyncJob | null;
+  syncRunning: boolean;
+  syncStarting: boolean;
+  triggerSync: () => Promise<void>;
 }
 
 const EMPTY: FinSnapData = {
@@ -42,6 +47,10 @@ const EMPTY: FinSnapData = {
   stale: false,
   lastFetched: null,
   refresh: async () => {},
+  syncJob: null,
+  syncRunning: false,
+  syncStarting: false,
+  triggerSync: async () => {},
 };
 
 const DataContext = createContext<FinSnapData>(EMPTY);
@@ -132,7 +141,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // search pulling a new symbol into the universe — and either way the poll
   // cadence above shouldn't be the only thing standing between "the job
   // finished" and the dashboard showing it.
-  const { job: syncJob } = useSync();
+  const {
+    job: syncJob,
+    running: syncRunning,
+    starting: syncStarting,
+    trigger: triggerSync,
+  } = useSync();
   const wasSyncing = useRef(false);
   useEffect(() => {
     const running = syncJob?.state === SyncState.Running;
@@ -153,6 +167,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         stale: snap !== null && age > SNAP_STALE_MS,
         lastFetched,
         refresh,
+        syncJob,
+        syncRunning,
+        syncStarting,
+        triggerSync,
       }}
     >
       {children}

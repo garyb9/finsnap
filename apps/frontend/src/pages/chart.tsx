@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { Page } from '../components/Page';
@@ -119,6 +120,7 @@ const Empty = styled.div`
 `;
 
 export default function ChartPage() {
+  const router = useRouter();
   const { snap, guide, loading } = useFinSnapData();
   const assets = useMemo(() => (snap ? Object.values(snap.assets) : []), [snap]);
   const infoBySymbol = useMemo(
@@ -132,6 +134,12 @@ export default function ChartPage() {
   const [pickedSymbol, setPickedSymbol] = useState<string | null>(null);
   const [strategyId, setStrategyId] = useState<string | null>(null);
   const [compareId, setCompareId] = useState<string | null>(null);
+
+  // Lets the command palette (and any other deep link) land straight on a ticker.
+  useEffect(() => {
+    const q = router.query.ticker;
+    if (typeof q === 'string' && q) setPickedSymbol(q.toUpperCase());
+  }, [router.query.ticker]);
 
   const asset =
     assets.find((a) => a.symbol === pickedSymbol) ??

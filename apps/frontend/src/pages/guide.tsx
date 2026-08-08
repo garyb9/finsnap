@@ -96,11 +96,15 @@ const Nav = styled.nav`
   gap: 6px;
   flex-wrap: wrap;
   position: sticky;
-  /* Clears the site header, which is also sticky at the top of the viewport. */
-  top: ${theme.headerHeight};
+  top: 0;
   z-index: 10;
   padding: 10px 0;
   background: linear-gradient(${theme.colors.backgroundGradientMid} 65%, rgba(2, 18, 15, 0) 100%);
+
+  /* Below md, the mobile top bar is also sticky above this. */
+  @media (max-width: ${theme.breakpoints.md}) {
+    top: ${theme.headerHeight};
+  }
 
   /* Redundant once the rail is on screen, and it says less: the pills cannot
      show you where you currently are. Same threshold the rail appears at. */
@@ -129,7 +133,11 @@ const Section = styled.section`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  scroll-margin-top: calc(${theme.headerHeight} + 56px);
+  scroll-margin-top: 56px;
+
+  @media (max-width: ${theme.breakpoints.md}) {
+    scroll-margin-top: calc(${theme.headerHeight} + 56px);
+  }
 `;
 
 /**
@@ -304,7 +312,11 @@ const Entry = styled.article`
   display: flex;
   flex-direction: column;
   gap: 6px;
-  scroll-margin-top: calc(${theme.headerHeight} + 60px);
+  scroll-margin-top: 60px;
+
+  @media (max-width: ${theme.breakpoints.md}) {
+    scroll-margin-top: calc(${theme.headerHeight} + 60px);
+  }
 
   /* A deep link should make it obvious which entry you landed on — at this
      contrast a border tint alone is invisible, so the ring does the work. */
@@ -399,7 +411,11 @@ const Metric = styled.article<{ $linked: boolean }>`
   border-radius: ${theme.radius.sm};
   border-bottom: 1px solid ${theme.colors.borderSlate};
   background: ${({ $linked }) => ($linked ? theme.colors.accentSoft : 'transparent')};
-  scroll-margin-top: calc(${theme.headerHeight} + 60px);
+  scroll-margin-top: 60px;
+
+  @media (max-width: ${theme.breakpoints.md}) {
+    scroll-margin-top: calc(${theme.headerHeight} + 60px);
+  }
 `;
 
 const MetricHead = styled.button`
