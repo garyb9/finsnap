@@ -200,6 +200,16 @@ describe('adx', () => {
     const values = adx(barsFromCloses(risingCloses(20)), 14);
     expect(values.every(Number.isNaN)).toBe(true);
   });
+
+  it('produces a defined value at the exact boundary (2 * period bars)', () => {
+    const period = 14;
+    // With exactly 2*period (28) bars, ADX should be defined at index 2*period-1 (27)
+    const atBoundary = adx(barsFromCloses(risingCloses(period * 2)), period);
+    expect(Number.isFinite(atBoundary[period * 2 - 1])).toBe(true);
+    // With 2*period-1 (27) bars, all values should remain NaN
+    const justShort = adx(barsFromCloses(risingCloses(period * 2 - 1)), period);
+    expect(justShort.every(Number.isNaN)).toBe(true);
+  });
 });
 
 describe('donchian', () => {

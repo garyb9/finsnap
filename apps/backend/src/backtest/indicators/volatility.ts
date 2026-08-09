@@ -61,7 +61,7 @@ export function atr(bars: Bar[], period = 14): number[] {
  */
 export function adx(bars: Bar[], period = 14): number[] {
   const out = new Array<number>(bars.length).fill(NaN);
-  if (bars.length <= period * 2) return out;
+  if (bars.length <= period * 2 - 1) return out;
 
   const tr = trueRange(bars);
   const plusDM = new Array<number>(bars.length).fill(0);
