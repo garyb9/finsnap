@@ -30,38 +30,19 @@ const SECTIONS = [
 
 // ---------- Styled ----------
 
-/**
- * Narrower than the dashboard on purpose.
- *
- * Uncapping the paragraphs let them run to ~110 characters a line, which is
- * roughly twice a comfortable measure — the eye loses its place returning to
- * the next line. Constraining the column instead of the paragraphs keeps every
- * element aligned to one edge while still reading well.
- */
 const Column = styled.div`
-  width: 100%;
-  max-width: 760px;
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 40px;
 `;
 
-/**
- * Prose column plus the sticky table of contents beside it.
- *
- * The column keeps its own measure rather than stretching to fill what the rail
- * leaves over — the rail is chrome, and letting it widen the paragraphs would
- * undo the reason the column is capped in the first place.
- */
+/** Prose column plus the sticky table of contents beside it, both filling the page's own width. */
 const Layout = styled.div`
   width: 100%;
-  max-width: 1026px;
   display: flex;
   align-items: flex-start;
-  /* Below the rail's breakpoint it drops out of the flow entirely, and without
-     this the column would sit against the left edge of the space it left. */
-  justify-content: center;
   gap: 48px;
 `;
 

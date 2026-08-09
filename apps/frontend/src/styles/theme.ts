@@ -85,7 +85,6 @@ export const theme = {
   },
   maxWidth: {
     content: '800px',
-    dashboard: '1400px',
   },
   /**
    * Height of the mobile top bar (`MobileTopBar`), shown only below `md` now

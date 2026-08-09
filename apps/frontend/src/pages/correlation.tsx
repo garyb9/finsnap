@@ -43,7 +43,6 @@ const Note = styled.p`
   font-size: 0.78rem;
   line-height: 1.65;
   color: ${theme.colors.textMuted};
-  max-width: 92ch;
 `;
 
 const WindowRow = styled.div`
