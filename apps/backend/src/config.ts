@@ -21,6 +21,13 @@ const configSchema = z.object({
    */
   telegramBotToken: z.string().optional(),
   telegramChannelId: z.string().optional(),
+  /**
+   * Ops channel the scheduled snap/report cron pings when a run fails outright
+   * — those jobs have no caller to report the error to otherwise. Reuses the
+   * same bot token as the main channel; only meaningful when `telegramEnabled`
+   * is also true.
+   */
+  telegramOpsChannelId: z.string().optional(),
   /** `polling` needs a long-lived process; `webhook` is what serverless needs. */
   telegramMode: z.nativeEnum(TelegramMode).default(TelegramMode.Polling),
   /** Public base URL Telegram should call in webhook mode, e.g. https://api.example.com */
@@ -168,6 +175,7 @@ export function loadConfig(): Config {
     databaseUrl: process.env.DATABASE_URL,
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChannelId: process.env.TELEGRAM_CHANNEL_ID,
+    telegramOpsChannelId: process.env.TELEGRAM_OPS_CHANNEL_ID,
     telegramMode: process.env.TELEGRAM_MODE,
     telegramWebhookUrl: process.env.TELEGRAM_WEBHOOK_URL,
     telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET,

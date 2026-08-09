@@ -458,6 +458,7 @@ yarn test
 | `DATABASE_URL`            | `postgres://postgres:postgres@postgres:5432/finsnap` | Postgres connection URL                              |
 | `TELEGRAM_BOT_TOKEN`      | —                                                    | Bot token. **Optional** — blank disables delivery    |
 | `TELEGRAM_CHANNEL_ID`     | —                                                    | Channel to publish to. Optional, same as above       |
+| `TELEGRAM_OPS_CHANNEL_ID` | —                                                    | Channel pinged when the scheduled snap/report cron fails. Optional |
 | `TELEGRAM_MODE`           | `polling`                                            | `polling` \| `webhook` \| `off`                      |
 | `TELEGRAM_WEBHOOK_URL`    | —                                                    | Public base URL, webhook mode only                   |
 | `TELEGRAM_WEBHOOK_SECRET` | —                                                    | Secret Telegram echoes back, webhook mode only       |

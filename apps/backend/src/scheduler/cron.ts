@@ -59,13 +59,13 @@ export class SnapScheduler {
     log.info(`report cron: ${reportCron} (${reportTimezone})`);
 
     this.snapTask = cron.schedule(snapCron, () => {
-      this.runSnap().catch((err) => log.error(`scheduled snap failed: ${err}`));
+      void this.runSnapScheduled();
     });
 
     this.reportTask = cron.schedule(
       reportCron,
       () => {
-        this.runReport().catch((err) => log.error(`scheduled report failed: ${err}`));
+        void this.runReportScheduled();
       },
       { timezone: reportTimezone }
     );
@@ -139,6 +139,34 @@ export class SnapScheduler {
     } finally {
       this.reportRunning = false;
     }
+  }
+
+  /**
+   * Cron-triggered wrapper for `runSnap` — swallows the error after alerting,
+   * since a scheduled run has no caller to report failure to. Manual triggers
+   * (`POST /snap/trigger`) go through `runSnap` directly and surface the
+   * error over HTTP instead.
+   */
+  async runSnapScheduled(): Promise<void> {
+    try {
+      await this.runSnap();
+    } catch (err) {
+      this.alertFailure('snap', err);
+    }
+  }
+
+  /** Cron-triggered wrapper for `runReport` — see `runSnapScheduled`. */
+  async runReportScheduled(): Promise<void> {
+    try {
+      await this.runReport();
+    } catch (err) {
+      this.alertFailure('report', err);
+    }
+  }
+
+  private alertFailure(job: 'snap' | 'report', err: unknown): void {
+    log.error(`scheduled ${job} failed: ${err}`);
+    void this.telegram.publishAlert(`Scheduled ${job} failed: ${err}`);
   }
 
   private startCountdown(): void {

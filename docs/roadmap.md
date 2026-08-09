@@ -25,8 +25,10 @@ Make it trustworthy before charging for it.
   issues.
 - Data-provider resilience: paid provider fallback or a hardened Yahoo session. Yahoo
   Finance from a datacenter IP is the single most likely thing to break a hosted deploy.
-- Cron failure alerting — the report/sync job fails silently today; ping an ops Telegram
-  channel on failure.
+- ~~Cron failure alerting — the report/sync job fails silently today; ping an ops
+  Telegram channel on failure.~~ Done: `SnapScheduler` now alerts `TELEGRAM_OPS_CHANNEL_ID`
+  when a scheduled snap or report run fails; manual triggers still surface errors over
+  HTTP instead.
 - Replace the in-memory sync tracker, which breaks with more than one instance.
 
 ## Epic 1 — Ship it somewhere

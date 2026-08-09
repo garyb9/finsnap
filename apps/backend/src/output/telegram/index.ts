@@ -28,6 +28,7 @@ export const TELEGRAM_WEBHOOK_PATH = '/telegram/webhook';
 export class TelegramOutput {
   private bot: Telegraf | null = null;
   private channelId: string | null = null;
+  private opsChannelId: string | null = null;
   private mode: TelegramMode;
 
   constructor(
@@ -47,6 +48,7 @@ export class TelegramOutput {
 
     this.bot = new Telegraf(config.telegramBotToken!);
     this.channelId = config.telegramChannelId!;
+    this.opsChannelId = config.telegramOpsChannelId ?? null;
   }
 
   get enabled(): boolean {
@@ -59,6 +61,21 @@ export class TelegramOutput {
 
   async publishReport(report: DailyReport): Promise<void> {
     await this.send(formatDailyReport(report), `report ${report.id}`);
+  }
+
+  /**
+   * Best-effort ping to the ops channel for a scheduled job that failed
+   * outright. A missing `TELEGRAM_OPS_CHANNEL_ID` makes this a silent no-op —
+   * the failure is still logged, just not paged.
+   */
+  async publishAlert(message: string): Promise<void> {
+    if (!this.bot || !this.opsChannelId) return;
+
+    try {
+      await this.bot.telegram.sendMessage(this.opsChannelId, `⚠️ ${message}`);
+    } catch (err) {
+      log.error(`failed to send ops alert: ${err}`);
+    }
   }
 
   /**
