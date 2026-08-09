@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  adx,
   atr,
   bollinger,
   donchian,
@@ -14,7 +15,7 @@ import {
   trueRange,
   zscore,
 } from '../backtest/indicators';
-import { barsFromCloses, barsFromOhlc, risingCloses } from './helpers/bars';
+import { barsFromCloses, barsFromOhlc, oscillatingCloses, risingCloses } from './helpers/bars';
 
 const RAMP = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -178,6 +179,26 @@ describe('trueRange / atr', () => {
     const values = atr(barsFromCloses(risingCloses(60)), 14);
     expect(values.at(-1)!).toBeGreaterThan(0);
     expect(values.slice(0, 14).every(Number.isNaN)).toBe(true);
+  });
+});
+
+describe('adx', () => {
+  it('stays NaN through warm-up (2 * period - 1 bars)', () => {
+    const values = adx(barsFromCloses(risingCloses(60)), 14);
+    expect(values.slice(0, 27).every(Number.isNaN)).toBe(true);
+    expect(Number.isFinite(values.at(-1))).toBe(true);
+  });
+
+  it('reads higher on a steadily trending series than a choppy one', () => {
+    const trending = adx(barsFromCloses(risingCloses(120, 100, 1)), 14);
+    const choppy = adx(barsFromCloses(oscillatingCloses(120, 100, 2, 10)), 14);
+    expect(trending.at(-1)!).toBeGreaterThan(25);
+    expect(trending.at(-1)!).toBeGreaterThan(choppy.at(-1)!);
+  });
+
+  it('returns all-NaN when there are not enough bars', () => {
+    const values = adx(barsFromCloses(risingCloses(20)), 14);
+    expect(values.every(Number.isNaN)).toBe(true);
   });
 });
 

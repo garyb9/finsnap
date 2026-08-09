@@ -52,6 +52,61 @@ export function atr(bars: Bar[], period = 14): number[] {
   return out;
 }
 
+/**
+ * Wilder's ADX(period) — trend strength, independent of direction. Built the
+ * same way as `atr()` above: seeded from a plain average over the first
+ * `period` bars, then Wilder-smoothed one bar at a time. ADX itself is a
+ * second layer of the same smoothing applied to DX, so it only becomes
+ * defined after `2 * period - 1` bars.
+ */
+export function adx(bars: Bar[], period = 14): number[] {
+  const out = new Array<number>(bars.length).fill(NaN);
+  if (bars.length <= period * 2) return out;
+
+  const tr = trueRange(bars);
+  const plusDM = new Array<number>(bars.length).fill(0);
+  const minusDM = new Array<number>(bars.length).fill(0);
+
+  for (let i = 1; i < bars.length; i++) {
+    const upMove = bars[i].high - bars[i - 1].high;
+    const downMove = bars[i - 1].low - bars[i].low;
+    plusDM[i] = upMove > downMove && upMove > 0 ? upMove : 0;
+    minusDM[i] = downMove > upMove && downMove > 0 ? downMove : 0;
+  }
+
+  let avgTR = tr.slice(1, period + 1).reduce((s, v) => s + v, 0) / period;
+  let avgPlusDM = plusDM.slice(1, period + 1).reduce((s, v) => s + v, 0) / period;
+  let avgMinusDM = minusDM.slice(1, period + 1).reduce((s, v) => s + v, 0) / period;
+
+  const dx = new Array<number>(bars.length).fill(NaN);
+  const recordDx = (i: number) => {
+    const plusDI = avgTR > 0 ? (avgPlusDM / avgTR) * 100 : 0;
+    const minusDI = avgTR > 0 ? (avgMinusDM / avgTR) * 100 : 0;
+    const sum = plusDI + minusDI;
+    dx[i] = sum > 0 ? (Math.abs(plusDI - minusDI) / sum) * 100 : 0;
+  };
+  recordDx(period);
+
+  for (let i = period + 1; i < bars.length; i++) {
+    avgTR = (avgTR * (period - 1) + tr[i]) / period;
+    avgPlusDM = (avgPlusDM * (period - 1) + plusDM[i]) / period;
+    avgMinusDM = (avgMinusDM * (period - 1) + minusDM[i]) / period;
+    recordDx(i);
+  }
+
+  // ADX is a Wilder-smoothed average of DX, seeded once a full `period` of DX
+  // values exists — indices `period` through `2 * period - 1`.
+  let avgDx = dx.slice(period, period * 2).reduce((s, v) => s + v, 0) / period;
+  out[period * 2 - 1] = avgDx;
+
+  for (let i = period * 2; i < bars.length; i++) {
+    avgDx = (avgDx * (period - 1) + dx[i]) / period;
+    out[i] = avgDx;
+  }
+
+  return out;
+}
+
 export interface SupertrendSeries {
   /** +1 while the trend is up, -1 while it is down */
   direction: number[];
