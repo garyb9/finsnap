@@ -131,10 +131,56 @@ const Empty = styled.div`
   padding: 12px 0;
 `;
 
-function findStrategy(report: AssetReport, strategyId: string): StrategyReport | undefined {
+const CoverageNote = styled.p`
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: ${theme.colors.warning};
+`;
+
+function findStrategy(
+  report: AssetReport,
+  strategyId: string
+): { strategy: StrategyReport; group: 'daily' | 'intraday' } | undefined {
+  const daily = report.daily.find((s) => s.strategyId === strategyId);
+  if (daily) return { strategy: daily, group: 'daily' };
+
+  const intraday = report.intraday.find((s) => s.strategyId === strategyId);
+  if (intraday) return { strategy: intraday, group: 'intraday' };
+
+  return undefined;
+}
+
+const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+
+/**
+ * How many windows a strategy *would* show with full history, per interval —
+ * mirrors `DAILY_WINDOWS.length` / `INTRADAY_WINDOWS.length` in the backend
+ * (`constants/backtest.ts`). Fewer than this means some were dropped as too
+ * short or duplicates of a longer one (see `backtest/windows.ts`), which
+ * otherwise reads as a silently shorter table with no explanation.
+ */
+const FULL_WINDOW_COUNT: Record<'daily' | 'intraday', number> = {
+  daily: 10,
+  intraday: 5,
+};
+
+/** Coverage note shown when history is too short to fill every window. */
+function coverageNote(
+  report: AssetReport,
+  strategy: StrategyReport,
+  group: 'daily' | 'intraday'
+): string | null {
+  const expected = FULL_WINDOW_COUNT[group];
+  const shown = strategy.windows.length;
+  if (shown >= expected) return null;
+
+  const years = (report.lastBarTime - report.historyStart) / YEAR_MS;
+  const since = new Date(report.historyStart).toISOString().slice(0, 10);
+
   return (
-    report.daily.find((s) => s.strategyId === strategyId) ??
-    report.intraday.find((s) => s.strategyId === strategyId)
+    `Showing ${shown} of ${expected} windows — ${report.label} only has ${years.toFixed(1)} ` +
+    `years of history (since ${since}), so longer windows are dropped rather than padded.`
   );
 }
 
@@ -155,8 +201,8 @@ export function StrategyStatsCard({ report, strategyId, loading }: Props) {
     );
   }
 
-  const strategy = findStrategy(report, strategyId);
-  if (!strategy) {
+  const found = findStrategy(report, strategyId);
+  if (!found) {
     return (
       <Wrap>
         <CardTitle style={{ margin: 0 }}>Strategy vs buy &amp; hold</CardTitle>
@@ -164,6 +210,9 @@ export function StrategyStatsCard({ report, strategyId, loading }: Props) {
       </Wrap>
     );
   }
+
+  const { strategy, group } = found;
+  const coverage = coverageNote(report, strategy, group);
 
   return (
     <Wrap>
@@ -185,6 +234,8 @@ export function StrategyStatsCard({ report, strategyId, loading }: Props) {
       </Head>
 
       <Rationale>{strategy.rationale}</Rationale>
+
+      {coverage && <CoverageNote>{coverage}</CoverageNote>}
 
       {strategy.windows.length === 0 ? (
         <Empty>Not enough history to backtest this window yet.</Empty>
