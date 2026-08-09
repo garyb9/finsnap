@@ -12,6 +12,12 @@ import {
 
 export { Verdict };
 
+/** Independently-derived read of whether an asset is currently trending or choppy. */
+export interface Regime {
+  trend: 'trending' | 'choppy';
+  adx: number;
+}
+
 export interface Consensus {
   /** 0-100: edge-weighted share of strategies currently positioned long */
   score: number;
@@ -82,6 +88,8 @@ export interface AssetOpportunity {
    * the same numbers were already being computed for `/technicals`.
    */
   bollinger?: { bandwidth: number; percentB: number; widthLabel: string; positionLabel: string };
+  /** Independently-derived trend/choppy read — see `report/regime.ts`. Purely explanatory, never feeds edgeScore/opportunityScore. */
+  regime?: Regime;
   options?: OptionsContext;
   /** Plain-English observations worth surfacing */
   notes: string[];
