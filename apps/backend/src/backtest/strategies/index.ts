@@ -18,6 +18,7 @@ import {
 import { emaCross, macdCross, priceAboveSma, smaCross, supertrendFollow } from './trend';
 import { tsmomTrend } from './tsmom';
 import { adlTrend, cmfTrend, mfiReversion, obvTrend, volumeConfirmedBreakout } from './volume';
+import { volTargetedMomentum } from './volTargeted';
 import type { Bar } from '../../collectors/types';
 
 /** Always long. The benchmark every other strategy is measured against. */
@@ -61,6 +62,7 @@ export const STRATEGIES: StrategyDef[] = [
   // Momentum
   absoluteMomentum(252),
   absoluteMomentum(90),
+  volTargetedMomentum(252, 15),
   rsiTrend(14, 50),
   // Puts the dashboard's own TSMOM reading on trial — see strategies/tsmom.ts.
   tsmomTrend(55),
@@ -110,3 +112,4 @@ export * from './meanReversion';
 export * from './trend';
 export * from './tsmom';
 export * from './volume';
+export * from './volTargeted';

@@ -25,6 +25,14 @@ export interface StrategyDef {
   warmup: number;
   /** Compute target exposure per bar from the full series */
   signals(bars: Bar[]): Signal[];
+  /**
+   * Optional per-bar protective stop level, same length as `signals()`, `null`
+   * where no stop is active. Set from data known through the bar's own close —
+   * the engine checks it against the *next* bar's low, so a breach fills same-bar
+   * rather than waiting for the usual one-bar-lag open fill, the same way a
+   * resting stop-market order would in live trading.
+   */
+  stops?(bars: Bar[]): (number | null)[];
 }
 
 export interface Trade {

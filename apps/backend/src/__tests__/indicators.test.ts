@@ -4,6 +4,7 @@ import {
   bollinger,
   donchian,
   ema,
+  ewmaVolatility,
   macd,
   roc,
   rsi,
@@ -56,6 +57,51 @@ describe('stdev', () => {
 
   it('is positive for a varying series', () => {
     expect(stdev(RAMP, 3).at(-1)!).toBeGreaterThan(0);
+  });
+});
+
+describe('ewmaVolatility', () => {
+  it('converges to the constant magnitude of a series of identical returns', () => {
+    // RiskMetrics-style EWMA vol is built from squared returns around zero, not
+    // demeaned — a steady nonzero drift converges to its own magnitude, not 0.
+    const result = ewmaVolatility([0.01, 0.01, 0.01, 0.01, 0.01]);
+    expect(result.at(-1)).toBeCloseTo(0.01);
+  });
+
+  it('is zero only when returns are actually zero', () => {
+    const result = ewmaVolatility([0, 0, 0, 0]);
+    expect(result.at(-1)).toBeCloseTo(0);
+  });
+
+  it('matches the hand-computed recursion', () => {
+    const returns = [0.02, -0.01, 0.03];
+    const lambda = 0.94;
+    const v0 = returns[0] ** 2;
+    const v1 = lambda * v0 + (1 - lambda) * returns[1] ** 2;
+    const v2 = lambda * v1 + (1 - lambda) * returns[2] ** 2;
+
+    const result = ewmaVolatility(returns, lambda);
+    expect(result[0]).toBeCloseTo(Math.sqrt(v0));
+    expect(result[1]).toBeCloseTo(Math.sqrt(v1));
+    expect(result[2]).toBeCloseTo(Math.sqrt(v2));
+  });
+
+  it('leaves leading NaN returns undefined without poisoning the rest', () => {
+    const result = ewmaVolatility([NaN, 0.02, -0.01]);
+    expect(Number.isNaN(result[0])).toBe(true);
+    expect(Number.isFinite(result[1])).toBe(true);
+    expect(Number.isFinite(result[2])).toBe(true);
+  });
+
+  it('reacts more to recent moves as lambda decreases', () => {
+    const returns = [0.001, 0.001, 0.001, 0.001, 0.05];
+    const slow = ewmaVolatility(returns, 0.97).at(-1)!;
+    const fast = ewmaVolatility(returns, 0.7).at(-1)!;
+    expect(fast).toBeGreaterThan(slow);
+  });
+
+  it('returns the same length as its input', () => {
+    expect(ewmaVolatility([0.01, 0.02, -0.01])).toHaveLength(3);
   });
 });
 

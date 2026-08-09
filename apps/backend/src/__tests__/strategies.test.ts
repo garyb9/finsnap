@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { applicableStrategies, buyAndHold, getStrategy, STRATEGIES } from '../backtest/strategies';
 import { StrategyKind } from '../backtest/types';
-import { stateMachine, whenTrue, defined } from '../backtest/strategies/helpers';
+import { stateMachine, whenTrue, defined, volatilityScaled } from '../backtest/strategies/helpers';
 import { emaCross, priceAboveSma, smaCross } from '../backtest/strategies/trend';
 import {
   bollingerReversion,
@@ -11,9 +11,11 @@ import {
 } from '../backtest/strategies/meanReversion';
 import {
   absoluteMomentum,
+  chandelierTrend,
   donchianBreakout,
   volatilitySqueezeBreakout,
 } from '../backtest/strategies/breakout';
+import { volTargetedMomentum } from '../backtest/strategies/volTargeted';
 import { barsFromCloses, oscillatingCloses, risingCloses } from './helpers/bars';
 
 describe('strategy registry', () => {
@@ -105,6 +107,58 @@ describe('defined', () => {
   });
 });
 
+describe('volatilityScaled', () => {
+  it('passes a base signal through unscaled when realized vol matches target', () => {
+    expect(volatilityScaled([1, 1], [10, 10], 10)).toEqual([1, 1]);
+  });
+
+  it('scales down when realized vol exceeds target', () => {
+    expect(volatilityScaled([1], [20], 10)).toEqual([0.5]);
+  });
+
+  it('caps at maxLeverage when realized vol is far below target', () => {
+    expect(volatilityScaled([1], [1], 10, 1)).toEqual([1]);
+    expect(volatilityScaled([1], [1], 10, 2)).toEqual([2]);
+  });
+
+  it('never turns on a signal the base strategy left off', () => {
+    expect(volatilityScaled([0], [1], 10)).toEqual([0]);
+  });
+
+  it('goes flat rather than divide-by-zero when realized vol is undefined or non-positive', () => {
+    expect(volatilityScaled([1], [NaN], 10)).toEqual([0]);
+    expect(volatilityScaled([1], [0], 10)).toEqual([0]);
+  });
+});
+
+describe('volTargetedMomentum', () => {
+  it('runs at full (capped) size in a smooth, low-volatility uptrend', () => {
+    const bars = barsFromCloses(risingCloses(400, 100, 0.05));
+    expect(volTargetedMomentum(252, 15).signals(bars).at(-1)).toBe(1);
+  });
+
+  it('stays flat in a falling market, same as unscaled momentum', () => {
+    const bars = barsFromCloses(risingCloses(400, 100, 0.5).reverse());
+    expect(volTargetedMomentum(252, 15).signals(bars).at(-1)).toBe(0);
+  });
+
+  it('sizes down below full exposure once realized volatility runs well above target', () => {
+    const closes: number[] = [100];
+    for (let i = 1; i < 400; i++) {
+      const factor = i % 2 === 0 ? 1.02 : 0.985;
+      closes.push(closes[i - 1] * factor);
+    }
+    const bars = barsFromCloses(closes);
+
+    const scaled = volTargetedMomentum(252, 15).signals(bars).at(-1)!;
+    const unscaled = absoluteMomentum(252).signals(bars).at(-1)!;
+
+    expect(unscaled).toBe(1); // momentum itself is positive over the lookback
+    expect(scaled).toBeGreaterThan(0); // still long, direction agrees with base momentum
+    expect(scaled).toBeLessThan(1); // but sized down for the elevated realized vol
+  });
+});
+
 describe('trend strategies', () => {
   it('holds a steadily rising market', () => {
     const bars = barsFromCloses(risingCloses(400, 100, 0.5));
@@ -156,6 +210,26 @@ describe('momentum and breakout strategies', () => {
         .signals(bars)
         .every((s) => s === 0)
     ).toBe(true);
+  });
+
+  it("chandelier trend's stops() tracks the same trailing level signals() exits on", () => {
+    const bars = barsFromCloses(risingCloses(200, 100, 1));
+    const strategy = chandelierTrend(20, 14, 3);
+    const signals = strategy.signals(bars);
+    const stops = strategy.stops!(bars);
+
+    expect(stops).toHaveLength(signals.length);
+    expect(signals.some((s) => s === 1)).toBe(true); // the fixture actually enters at some point
+
+    for (let i = 0; i < signals.length; i++) {
+      if (signals[i] === 1) {
+        expect(stops[i]).not.toBeNull();
+        expect(Number.isFinite(stops[i])).toBe(true);
+        expect(stops[i]!).toBeLessThan(bars[i].close); // a trailing stop always sits below the close that set it
+      } else {
+        expect(stops[i]).toBeNull();
+      }
+    }
   });
 });
 

@@ -43,3 +43,23 @@ export function whenTrue(length: number, condition: (i: number) => boolean): Sig
 export function defined(...values: number[]): boolean {
   return values.every((v) => Number.isFinite(v));
 }
+
+/**
+ * Scale a base long/flat signal down when realized volatility runs hotter
+ * than `targetVol`, and back up (capped at `maxLeverage`) when it's calmer —
+ * the risk-sizing counterpart to `whenTrue`/`stateMachine`, which only ever
+ * decide direction. `NaN`/non-positive realized vol (warm-up) scales to zero,
+ * matching how every other indicator treats warm-up as "no opinion."
+ */
+export function volatilityScaled(
+  baseSignal: Signal[],
+  realizedVol: number[],
+  targetVol: number,
+  maxLeverage = 1
+): Signal[] {
+  return baseSignal.map((signal, i) => {
+    const vol = realizedVol[i];
+    if (!Number.isFinite(vol) || vol <= 0) return 0;
+    return signal * Math.max(Math.min(targetVol / vol, maxLeverage), 0);
+  });
+}

@@ -20,16 +20,27 @@ function clampExposure(signal: Signal): number {
  * `signals` must be the same length as `bars`, and should be computed over the
  * full price history even when `bars` is a shorter evaluation window, so that
  * indicator warm-up does not leak into the measured period.
+ *
+ * `stops`, if supplied, is checked *before* the signal-driven rebalance each
+ * bar: a stop level fixed by the close of bar `i - 1` that the bar `i` low
+ * breaches fills that same bar, rather than waiting for the usual next-open
+ * fill. This is not lookahead — the level was already fixed before bar `i`
+ * opened — it is closer to how a resting stop-market order actually behaves.
  */
 export function runBacktest(
   bars: Bar[],
   signals: Signal[],
-  options: BacktestOptions
+  options: BacktestOptions,
+  stops?: (number | null)[]
 ): BacktestResult {
   const { initialCapital, feeBps, slippageBps, periodsPerYear } = options;
 
   if (bars.length !== signals.length) {
     throw new Error(`signal length ${signals.length} does not match bar count ${bars.length}`);
+  }
+
+  if (stops && stops.length !== bars.length) {
+    throw new Error(`stops length ${stops.length} does not match bar count ${bars.length}`);
   }
 
   if (bars.length < 2) {
@@ -65,6 +76,35 @@ export function runBacktest(
 
   for (let i = 1; i < bars.length; i++) {
     const bar = bars[i];
+
+    if (stops && units > 0) {
+      const stopLevel = stops[i - 1];
+      if (stopLevel !== null && Number.isFinite(stopLevel) && bar.low <= stopLevel) {
+        // A gap below the stop fills at the worse open price, not an
+        // unreachable stop level — the same way a real stop-market order
+        // behaves on a gap.
+        const fillPrice = Math.min(bar.open, stopLevel) * (1 - slipRate);
+        const fee = units * fillPrice * feeRate;
+
+        cash += units * fillPrice - fee;
+        units = 0;
+
+        trades.push({
+          entryTime: bars[openEntryIndex].time,
+          exitTime: bar.time,
+          entryPrice: openEntryPrice,
+          exitPrice: fillPrice,
+          returnPct: openEntryEquity > 0 ? (cash / openEntryEquity - 1) * 100 : 0,
+          barsHeld: i - openEntryIndex,
+          open: false,
+        });
+        openEntryIndex = -1;
+
+        equity.push(cash);
+        continue;
+      }
+    }
+
     const target = clampExposure(signals[i - 1]);
 
     // Mark the book at the open before deciding how much to move.

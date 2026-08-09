@@ -13,6 +13,29 @@ export function trueRange(bars: Bar[]): number[] {
   });
 }
 
+/**
+ * Exponentially-weighted moving standard deviation of a return series
+ * (RiskMetrics-style), in the same units as the input returns — not
+ * annualized. `lambda` closer to 1 remembers further back; 0.94 is the
+ * RiskMetrics daily default. Deliberately a closed-form recursion rather than
+ * a full GARCH(1,1) fit — the simplest estimator sufficient for scaling
+ * position size, not a volatility-forecasting model in its own right.
+ */
+export function ewmaVolatility(returns: number[], lambda = 0.94): number[] {
+  const out = new Array<number>(returns.length).fill(NaN);
+  let variance = NaN;
+
+  for (let i = 0; i < returns.length; i++) {
+    const r = returns[i];
+    if (!Number.isFinite(r)) continue;
+
+    variance = Number.isFinite(variance) ? lambda * variance + (1 - lambda) * r * r : r * r;
+    out[i] = Math.sqrt(variance);
+  }
+
+  return out;
+}
+
 /** Wilder-smoothed Average True Range. */
 export function atr(bars: Bar[], period = 14): number[] {
   const tr = trueRange(bars);

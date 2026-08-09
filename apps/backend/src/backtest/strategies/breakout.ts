@@ -45,11 +45,64 @@ export function absoluteMomentum(lookback: number): StrategyDef {
   };
 }
 
+interface ChandelierPath {
+  signals: Signal[];
+  /** Protective stop level active as of each bar's close, `null` while flat. */
+  stops: (number | null)[];
+}
+
+/**
+ * Shared path-dependent walk behind `chandelierTrend`'s `signals()` and
+ * `stops()` — both need the same trailing-highest-close state, so it's
+ * computed once here rather than duplicating the loop.
+ */
+function computeChandelierPath(
+  bars: Bar[],
+  entryPeriod: number,
+  atrPeriod: number,
+  multiplier: number
+): ChandelierPath {
+  const price = closes(bars);
+  const channel = donchian(bars, entryPeriod);
+  const atrValues = atr(bars, atrPeriod);
+
+  const signals = new Array<Signal>(bars.length).fill(0);
+  const stops = new Array<number | null>(bars.length).fill(null);
+  let position = 0;
+  let highestClose = -Infinity;
+
+  for (let i = 0; i < bars.length; i++) {
+    if (position === 0) {
+      if (defined(channel.upper[i], atrValues[i]) && price[i] > channel.upper[i]) {
+        position = 1;
+        highestClose = price[i];
+      }
+    } else {
+      if (price[i] > highestClose) highestClose = price[i];
+      const stop = highestClose - multiplier * atrValues[i];
+      if (defined(stop) && price[i] < stop) {
+        position = 0;
+        highestClose = -Infinity;
+      }
+    }
+
+    signals[i] = position;
+    stops[i] =
+      position === 1 && defined(atrValues[i]) ? highestClose - multiplier * atrValues[i] : null;
+  }
+
+  return { signals, stops };
+}
+
 /**
  * Chandelier exit: enter on a channel breakout, then trail a stop `multiplier`
  * ATRs below the highest close reached since entry. Unlike the other rules this
  * one is path-dependent — the exit level depends on where the trade has already
  * been — so it needs an explicit loop rather than a vectorized comparison.
+ *
+ * `stops()` exposes that same trailing level to the engine so a bar whose
+ * *low* pierces the stop exits same-bar, instead of only a close-based exit
+ * one full bar later — see `StrategyDef.stops` and `engine.ts`.
  */
 export function chandelierTrend(
   entryPeriod: number,
@@ -66,32 +119,10 @@ export function chandelierTrend(
     params: { entryPeriod, atrPeriod, multiplier },
     warmup: Math.max(entryPeriod, atrPeriod * 2) + 1,
     signals(bars: Bar[]) {
-      const price = closes(bars);
-      const channel = donchian(bars, entryPeriod);
-      const atrValues = atr(bars, atrPeriod);
-
-      const signals = new Array<Signal>(bars.length).fill(0);
-      let position = 0;
-      let highestClose = -Infinity;
-
-      for (let i = 0; i < bars.length; i++) {
-        if (position === 0) {
-          if (defined(channel.upper[i], atrValues[i]) && price[i] > channel.upper[i]) {
-            position = 1;
-            highestClose = price[i];
-          }
-        } else {
-          if (price[i] > highestClose) highestClose = price[i];
-          const stop = highestClose - multiplier * atrValues[i];
-          if (defined(stop) && price[i] < stop) {
-            position = 0;
-            highestClose = -Infinity;
-          }
-        }
-        signals[i] = position;
-      }
-
-      return signals;
+      return computeChandelierPath(bars, entryPeriod, atrPeriod, multiplier).signals;
+    },
+    stops(bars: Bar[]) {
+      return computeChandelierPath(bars, entryPeriod, atrPeriod, multiplier).stops;
     },
   };
 }

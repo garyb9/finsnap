@@ -54,9 +54,10 @@ function toWindowResult(
   spec: WindowSpec,
   bars: Bar[],
   signals: Signal[],
-  options: BacktestOptions
+  options: BacktestOptions,
+  stops?: (number | null)[]
 ): WindowResult {
-  const strategy = runBacktest(bars, signals, options);
+  const strategy = runBacktest(bars, signals, options, stops);
   const benchmark = runBuyAndHold(bars, options);
 
   const excessCagrPct = strategy.stats.cagrPct - benchmark.stats.cagrPct;
@@ -87,14 +88,16 @@ export function evaluateStrategy(
   windowSpecs: WindowSpec[],
   options: BacktestOptions
 ): StrategyReport | null {
-  // Signals are computed once over the full history; each window slices into
-  // them, so indicator warm-up never contaminates a short window.
+  // Signals (and any protective stop levels) are computed once over the full
+  // history; each window slices into them, so indicator warm-up never
+  // contaminates a short window.
   const signals = strategy.signals(bars);
-  const slices = buildWindows(bars, signals, windowSpecs);
+  const stops = strategy.stops?.(bars);
+  const slices = buildWindows(bars, signals, windowSpecs, stops);
   if (slices.length === 0) return null;
 
   const windows = slices.map((slice) =>
-    toWindowResult(slice.spec, slice.bars, slice.signals, options)
+    toWindowResult(slice.spec, slice.bars, slice.signals, options, slice.stops)
   );
 
   const longest = windows.find((w) => w.window === 'max') ?? windows[0];

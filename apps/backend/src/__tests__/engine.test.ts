@@ -117,6 +117,52 @@ describe('runBuyAndHold', () => {
   });
 });
 
+describe('runBacktest stops', () => {
+  // Bar 1 entry fills at open (110). Bar 2's low wicks through a stop fixed at
+  // 100 (as of bar 1's close) and recovers to close at 113 — a close-only check
+  // would never see the breach.
+  const WICK = barsFromOhlc([
+    { open: 100, close: 105 },
+    { open: 110, high: 115, low: 108, close: 112 },
+    { open: 113, high: 114, low: 95, close: 113 },
+    { open: 116, high: 118, low: 116, close: 117 },
+    { open: 120, high: 121, low: 119, close: 120 },
+  ]);
+  const ALWAYS_LONG = [1, 1, 1, 1, 1];
+  const STOP_AT_100 = [null, 100, null, null, null];
+
+  it('exits same-bar when the low breaches a stop set by the prior close, not at the next open', () => {
+    const result = runBacktest(WICK, ALWAYS_LONG, FREE, STOP_AT_100);
+    const [trade] = result.trades;
+
+    expect(trade.entryPrice).toBeCloseTo(110);
+    expect(trade.exitTime).toBe(WICK[2].time); // bar 2, the breach bar itself
+    expect(trade.exitPrice).toBeCloseTo(100); // the stop level, not bar 2's open
+    expect(trade.open).toBe(false);
+  });
+
+  it('ignores an intrabar wick through the same level when no stops are supplied', () => {
+    const result = runBacktest(WICK, ALWAYS_LONG, FREE);
+    expect(result.trades.filter((t) => !t.open)).toHaveLength(0);
+  });
+
+  it('fills at the worse open price on a gap below the stop, not the unreachable stop level', () => {
+    const gapped = barsFromOhlc([
+      { open: 100, close: 105 },
+      { open: 110, high: 115, low: 108, close: 112 },
+      { open: 90, high: 92, low: 85, close: 91 }, // opens below the 100 stop
+      { open: 96, high: 98, low: 95, close: 97 },
+      { open: 99, high: 101, low: 98, close: 100 },
+    ]);
+    const result = runBacktest(gapped, ALWAYS_LONG, FREE, STOP_AT_100);
+    expect(result.trades[0].exitPrice).toBeCloseTo(90); // worse than the 100 stop
+  });
+
+  it('rejects a stops array that does not match the bar count', () => {
+    expect(() => runBacktest(WICK, ALWAYS_LONG, FREE, [null, 100])).toThrow(/does not match/);
+  });
+});
+
 describe('runBacktest edge cases', () => {
   it('handles an empty series without throwing', () => {
     const result = runBacktest([], [], FREE);

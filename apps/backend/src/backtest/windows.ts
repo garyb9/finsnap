@@ -8,10 +8,12 @@ export interface WindowSlice {
   spec: WindowSpec;
   bars: Bar[];
   signals: Signal[];
+  stops?: (number | null)[];
 }
 
 /**
- * Slice bars and their pre-computed signals into named lookback windows.
+ * Slice bars and their pre-computed signals (and optional stop levels) into
+ * named lookback windows.
  *
  * Signals are sliced alongside the bars rather than recomputed, so indicators
  * keep the warm-up they earned from the full history — a 1-month window can
@@ -21,7 +23,12 @@ export interface WindowSlice {
  * duplicates, which is what keeps a young ticker like IBIT from reporting
  * identical "10y", "5y" and "max" rows.
  */
-export function buildWindows(bars: Bar[], signals: Signal[], specs: WindowSpec[]): WindowSlice[] {
+export function buildWindows(
+  bars: Bar[],
+  signals: Signal[],
+  specs: WindowSpec[],
+  stops?: (number | null)[]
+): WindowSlice[] {
   if (bars.length === 0) return [];
 
   const lastTime = bars[bars.length - 1].time;
@@ -37,7 +44,12 @@ export function buildWindows(bars: Bar[], signals: Signal[], specs: WindowSpec[]
     if (seenLengths.has(windowBars.length)) continue;
 
     seenLengths.add(windowBars.length);
-    slices.push({ spec, bars: windowBars, signals: signals.slice(startIndex) });
+    slices.push({
+      spec,
+      bars: windowBars,
+      signals: signals.slice(startIndex),
+      stops: stops?.slice(startIndex),
+    });
   }
 
   return slices;
