@@ -10,11 +10,17 @@ doc exists, not yet planned/built) · `built` (shipped, kept here for history).
 
 ## Engine & scoring
 
-1. **Regime-aware strategy callout** — _in design_. Classify each asset's current
-   regime (trending / choppy, calm / volatile) and explain *why* a strategy family is
-   winning right now, e.g. "breakout rules leading XLE — strong trend, elevated vol."
-   Purely explanatory: a label + a report note, does not touch `edgeScore` /
-   `opportunityScore`. Spec: see `docs/superpowers/specs/` once written.
+1. **Regime-aware strategy callout** — _built_. Classifies each asset's current regime
+   (trending / choppy, from a new ADX indicator) and, when one strategy family clearly
+   dominates today's votes by edge-weighted conviction, appends a note explaining the
+   pairing, e.g. "Breakout rules lead today's vote — trending (ADX 31), wide bands."
+   Purely explanatory — does not touch `edgeScore` / `opportunityScore`. Spec:
+   `docs/superpowers/specs/2026-08-09-regime-aware-strategy-callout-design.md`. Plan:
+   `docs/superpowers/plans/2026-08-09-regime-aware-strategy-callout.md`. Follow-up not
+   included: the frontend's hand-maintained TS mirror types (`report.ts`,
+   `assetReport.ts`) don't yet declare the new `regime` field — the note itself already
+   renders today via the existing generic notes path, but a future trend badge would
+   need those types updated first.
 
 2. **Edge stability over time (walk-forward)** — _idea_. Instead of one static edge
    score over fixed windows, compute a rolling edge score and show whether a rule's
