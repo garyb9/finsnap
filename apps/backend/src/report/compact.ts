@@ -76,6 +76,7 @@ export interface CompactAsset {
   tsmom?: { score: number; label: string };
   momentum?: number;
   bollinger?: AssetOpportunity['bollinger'];
+  regime?: AssetOpportunity['regime'];
   options?: AssetOpportunity['options'];
   notes: string[];
   /** Highest-scoring strategies for today, longest-standing edge first */
@@ -149,6 +150,7 @@ export function compactAsset(asset: AssetOpportunity, topN = 5): CompactAsset {
       percentB: round(asset.bollinger.percentB, 3),
     },
     options: asset.options,
+    regime: asset.regime,
     notes: asset.notes,
     top: asset.daily
       .filter((s) => s.kind !== StrategyKind.Benchmark)

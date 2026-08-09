@@ -212,6 +212,15 @@ describe('compactAsset', () => {
   it('leaves the Bollinger reading absent when the analyzer produced none', () => {
     expect(compactAsset(makeAsset({ bollinger: undefined })).bollinger).toBeUndefined();
   });
+
+  it('passes regime through unchanged', () => {
+    const asset = makeAsset({ regime: { trend: 'trending', adx: 31 } });
+    expect(compactAsset(asset).regime).toEqual({ trend: 'trending', adx: 31 });
+  });
+
+  it('has no regime when the asset has none', () => {
+    expect(compactAsset(makeAsset()).regime).toBeUndefined();
+  });
 });
 
 describe('compactReport', () => {

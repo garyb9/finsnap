@@ -24,6 +24,7 @@ import {
 import { Timeframe } from '../constants/enums';
 import { fmtPct, isoDate, pickBand } from '../lib/format';
 import { buildNotes, computeConsensus } from './consensus';
+import { buildRegimeNote, computeRegime, dominantFamily } from './regime';
 import type { AssetOpportunity, DailyReport, Opportunity, OptionsContext } from './types';
 
 const log = createLogger('report');
@@ -152,6 +153,20 @@ export class ReportBuilder {
       );
     }
 
+    const bollinger = dailyFrame && {
+      bandwidth: dailyFrame.bollinger.bandwidth,
+      percentB: dailyFrame.bollinger.percentB,
+      widthLabel: pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label,
+      positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
+    };
+    const widthLabel = bollinger?.widthLabel;
+
+    const regime = computeRegime(daily.bars);
+    const family = regime && dominantFamily(dailyResult.strategies);
+    if (regime && family && widthLabel) {
+      notes.push(buildRegimeNote(regime, family, widthLabel));
+    }
+
     return {
       symbol: spec.symbol,
       label: spec.label,
@@ -168,13 +183,9 @@ export class ReportBuilder {
       intraday: intradayResult?.strategies ?? [],
       tsmom: { score: tsmom.score, label: tsmom.label },
       momentum: analysis.marketMomentum,
-      bollinger: dailyFrame && {
-        bandwidth: dailyFrame.bollinger.bandwidth,
-        percentB: dailyFrame.bollinger.percentB,
-        widthLabel: pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label,
-        positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
-      },
+      bollinger,
       options,
+      regime,
       notes,
     };
   }
