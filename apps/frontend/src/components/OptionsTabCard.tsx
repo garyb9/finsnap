@@ -1,11 +1,11 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { CardTitle, ExpTableScroll, ExpTable } from './Card';
+import { ExpTableScroll, ExpTable } from './Card';
 import { OptionsFlowMap } from './OptionsFlowMap';
 import { OptionsOverview } from './OptionsOverview';
 import { fmtNum, fmtK } from '../lib/format';
 import {
-  assetsWithChains,
+  ALL_TICKERS,
   daysToExpiry,
   shortDate,
   summarizeChain,
@@ -91,79 +91,19 @@ function nextSort(current: SortState, clicked: SortKey): SortState {
 
 // ---------- Styled ----------
 
+/** No card chrome of its own — it's the right column of `OptionsPanel`'s single shared card. */
 const Wrap = styled.section`
   width: 100%;
-  border-radius: ${theme.radius.lg};
-  border: 1px solid ${theme.colors.borderSlate};
-  background: radial-gradient(
-    circle at top left,
-    ${theme.colors.cardBgStart} 0,
-    ${theme.colors.cardBgEnd} 70%
-  );
-  box-shadow: ${theme.colors.shadowCard};
+  min-width: 0;
   display: flex;
   flex-direction: column;
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px 22px 0;
-  border-bottom: 1px solid ${theme.colors.borderSlate};
-`;
-
-const TabBar = styled.div`
-  display: flex;
-  gap: 2px;
-  flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`;
-
-/**
- * Separates the base universe from tickers pulled in by a search.
- *
- * Stretched to the row rather than given a fixed height, so it always matches
- * the tabs' own height instead of guessing at their font metrics.
- */
-const TabDivider = styled.span`
-  flex: none;
-  align-self: stretch;
-  width: 1px;
-  margin: 5px 3px;
-  background: ${theme.colors.borderSlateTable};
-`;
-
-const Tab = styled.button<{ $active: boolean }>`
-  all: unset;
-  cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  padding: 4px 12px 6px;
-  border-radius: ${theme.radius.sm} ${theme.radius.sm} 0 0;
-  margin-bottom: -1px;
-  color: ${({ $active }) => ($active ? theme.colors.textSlate : theme.colors.label)};
-  border-bottom: 2px solid ${({ $active }) => ($active ? theme.colors.accent : 'transparent')};
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-  white-space: nowrap;
-
-  &:hover {
-    color: ${theme.colors.textSlate};
-  }
 `;
 
 const PriceRow = styled.div`
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 10px 22px 6px;
+  padding: 0 0 6px;
 `;
 
 const PriceNum = styled.span`
@@ -181,11 +121,11 @@ const TickerLabel = styled.span`
 const Description = styled.div`
   font-size: 0.72rem;
   color: ${theme.colors.textMuted};
-  padding: 0 22px 10px;
+  padding: 0 0 10px;
 `;
 
 const Body = styled.div`
-  padding: 0 22px 20px;
+  padding: 0 0 20px;
 `;
 
 const NoData = styled.div`
@@ -308,36 +248,26 @@ function SortHead({
 
 // ---------- Component ----------
 
-/** Sentinel for the aggregate tab — distinct from any real ticker symbol. */
-const ALL_TAB = '__ALL__';
-
 interface Props {
+  /** Already filtered to assets that carry a usable chain. */
   assets: AssetSnap[];
+  /** Selected symbol, or `ALL_TICKERS` — owned by the page, shared with `OptionsTickerRail`. */
+  active: string;
   /** Which wall glossary term is highlighted right now, shared with the page above. */
   hoveredKind: WallKind | null;
   onHoverKind: (kind: WallKind | null) => void;
 }
 
-export function OptionsTabCard({ assets, hoveredKind, onHoverKind }: Props) {
-  // Only assets that actually carry a chain get a tab.
-  const withChains = assetsWithChains(assets);
-  // The snapshot lists the configured universe first, searched tickers
-  // appended after — a divider marks where that split falls, when both kinds
-  // are actually present.
-  const firstSearched = withChains.findIndex((a) => a.searched);
-  const showDivider = firstSearched > 0;
-  // The aggregate view leads the tab order, but a single ticker is still the
-  // default landing view — "All" is there to be reached for, not opened onto.
-  const [active, setActive] = useState<string>(withChains[0]?.symbol ?? ALL_TAB);
+export function OptionsTabCard({ assets, active, hoveredKind, onHoverKind }: Props) {
   const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
 
-  const isAll = active === ALL_TAB;
-  const asset = withChains.find((a) => a.symbol === active) ?? withChains[0];
+  const isAll = active === ALL_TICKERS;
+  const asset = assets.find((a) => a.symbol === active) ?? assets[0];
   const expirations = useMemo(() => asset?.options?.expirations ?? [], [asset]);
   const summary = useMemo(() => summarizeChain(expirations), [expirations]);
   const rows = useMemo(() => sortExpirations(expirations, sort), [expirations, sort]);
 
-  if (withChains.length === 0) return null;
+  if (assets.length === 0) return null;
 
   const data = asset
     ? {
@@ -348,29 +278,8 @@ export function OptionsTabCard({ assets, hoveredKind, onHoverKind }: Props) {
 
   return (
     <Wrap>
-      <Header>
-        <CardTitle style={{ margin: 0, whiteSpace: 'nowrap' }}>Options</CardTitle>
-        <TabBar>
-          <Tab $active={isAll} onClick={() => setActive(ALL_TAB)}>
-            All
-          </Tab>
-          <TabDivider />
-          {withChains.map((a, i) => (
-            <Fragment key={a.symbol}>
-              {showDivider && i === firstSearched && <TabDivider />}
-              <Tab
-                $active={!isAll && a.symbol === asset?.symbol}
-                onClick={() => setActive(a.symbol)}
-              >
-                {a.label}
-              </Tab>
-            </Fragment>
-          ))}
-        </TabBar>
-      </Header>
-
       {isAll ? (
-        <OptionsFlowMap assets={withChains} />
+        <OptionsFlowMap assets={assets} />
       ) : !asset || !data ? null : (
         <>
           <PriceRow>

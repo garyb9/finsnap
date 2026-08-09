@@ -273,7 +273,7 @@ function buildSeries(assets: AssetSnap[]): Series[] {
 
 const Wrap = styled.div`
   width: 100%;
-  padding: 6px 22px 20px;
+  padding: 0 0 20px;
 `;
 
 const Head = styled.div`
@@ -458,13 +458,14 @@ const MarkerHit = styled.circle`
   cursor: pointer;
 `;
 
-const EndLabel = styled.text<{ $color: string; $dimmed: boolean }>`
-  font-size: 10px;
+/** Only ever rendered for the highlighted series — see the dataviz palette
+ * notes above: past ~8 lines, identity leans on hover isolation and the
+ * legend text, not on always-on labels for every series at once. */
+const EndLabel = styled.text<{ $color: string }>`
+  font-size: 11px;
   font-weight: 700;
   fill: ${({ $color }) => $color};
-  opacity: ${({ $dimmed }) => ($dimmed ? 0.2 : 1)};
   dominant-baseline: middle;
-  transition: opacity 0.15s ease;
 `;
 
 /**
@@ -720,23 +721,6 @@ export function OptionsFlowMap({ assets }: { assets: AssetSnap[] }) {
 
   const refY = yOf(0);
 
-  // Ticker labels off the right edge, nudged apart where lines converge —
-  // several featured names often end within a hairline of each other, and
-  // stacked text there is unreadable without this.
-  const LABEL_GAP = 12;
-  const endLabelY = new Map<string, number>();
-  const ends = plottedSeries
-    .filter((s) => s.points.length > 0)
-    .map((s) => ({ symbol: s.symbol, y: yOf(s.points[s.points.length - 1].value) }))
-    .sort((a, b) => a.y - b.y);
-  for (let i = 1; i < ends.length; i++) {
-    if (ends[i].y - ends[i - 1].y < LABEL_GAP) ends[i].y = ends[i - 1].y + LABEL_GAP;
-  }
-  for (let i = ends.length - 2; i >= 0; i--) {
-    if (ends[i + 1].y - ends[i].y < LABEL_GAP) ends[i].y = ends[i + 1].y - LABEL_GAP;
-  }
-  ends.forEach(({ symbol, y }) => endLabelY.set(symbol, y));
-
   return (
     <Wrap>
       <Head>
@@ -924,30 +908,11 @@ export function OptionsFlowMap({ assets }: { assets: AssetSnap[] }) {
                   )}
                 </g>
               ))}
-              {last &&
-                (() => {
-                  const trueY = yOf(last.value);
-                  const labelY = endLabelY.get(s.symbol) ?? trueY;
-                  return (
-                    <>
-                      {Math.abs(labelY - trueY) > 1 && (
-                        <line
-                          x1={xOf(last.t)}
-                          x2={xOf(last.t) + 6}
-                          y1={trueY}
-                          y2={labelY}
-                          stroke={s.color}
-                          strokeWidth={1}
-                          opacity={dimmed ? 0.15 : 0.5}
-                        />
-                      )}
-                      <EndLabel x={xOf(last.t) + 8} y={labelY} $color={s.color} $dimmed={dimmed}>
-                        {s.symbol}
-                        {highlighted ? `  $${fmtNum(s.spot, 2)}` : ''}
-                      </EndLabel>
-                    </>
-                  );
-                })()}
+              {last && highlighted && (
+                <EndLabel x={xOf(last.t) + 8} y={yOf(last.value)} $color={s.color}>
+                  {s.symbol} ${fmtNum(s.spot, 2)}
+                </EndLabel>
+              )}
             </g>
           );
         })}

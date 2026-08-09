@@ -1,12 +1,56 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { theme } from '../styles/theme';
 import { Page } from '../components/Page';
-import { MainContainer } from '../components/MainContainer';
 import { OptionsTabCard } from '../components/OptionsTabCard';
+import { OptionsTickerRail } from '../components/OptionsTickerRail';
 import { LoadingStateContent } from '../components/LoadingState';
 import { useFinSnapData } from '../lib/dataContext';
-import type { WallKind } from '../lib/options';
+import { ALL_TICKERS, assetsWithChains, type WallKind } from '../lib/options';
+
+/**
+ * The whole page as one card — the rail, the wall glossary and the chain
+ * detail used to be three separately bordered pieces stacked and side by
+ * side, which read as unrelated widgets rather than one tool. One boundary,
+ * one background, a single internal divider between the ticker list and
+ * everything it drives. Fills the page's own width, same as every other page.
+ */
+const PanelWrap = styled.section`
+  width: 100%;
+  border-radius: ${theme.radius.lg};
+  border: 1px solid ${theme.colors.borderSlate};
+  background: radial-gradient(
+    circle at top left,
+    ${theme.colors.cardBgStart} 0,
+    ${theme.colors.cardBgEnd} 70%
+  );
+  box-shadow: ${theme.colors.shadowCard};
+  padding: 20px 22px;
+  display: flex;
+`;
+
+const Layout = styled.div`
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+`;
+
+const RailCol = styled.div`
+  flex: none;
+  display: flex;
+  min-height: 0;
+  padding-right: 20px;
+  border-right: 1px solid ${theme.colors.borderSlate};
+`;
+
+const ContentCol = styled.div`
+  flex: 1;
+  min-width: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+`;
 
 const Empty = styled.div`
   width: 100%;
@@ -14,41 +58,6 @@ const Empty = styled.div`
   text-align: center;
   font-size: 0.82rem;
   color: ${theme.colors.label};
-  border: 1px solid ${theme.colors.borderSlate};
-  border-radius: ${theme.radius.lg};
-  background: ${theme.colors.slateOverlay};
-`;
-
-/**
- * The page's own header, aligned to the card under it.
- *
- * This was a bare paragraph in a centring container with a `ch` cap, which at
- * this type size resolved to about 480px — so it floated in the middle of a
- * 1400px page, attached to nothing. Full width, left edge shared with the card,
- * and the sentence split off the title it was doing double duty as.
- */
-const Head = styled.header`
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 2px 2px 6px;
-`;
-
-const Title = styled.h1`
-  margin: 0;
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: ${theme.colors.label};
-`;
-
-const Note = styled.p`
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.7;
-  color: ${theme.colors.textMuted};
 `;
 
 /**
@@ -60,7 +69,7 @@ const Glossary = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
-  padding: 14px 2px 20px;
+  padding: 0 0 20px;
 
   @media (max-width: ${theme.breakpoints.lg}) {
     grid-template-columns: repeat(2, 1fr);
@@ -149,12 +158,22 @@ const WALL_GLOSSARY: {
  * It is context, never a signal — nothing here feeds the backtests.
  */
 export default function OptionsPage() {
-  const { snap, loading } = useFinSnapData();
-  const assets = snap ? Object.values(snap.assets).filter((a) => a.options) : [];
+  const { snap, guide, loading } = useFinSnapData();
+  const withChains = useMemo(
+    () => assetsWithChains(snap ? Object.values(snap.assets).filter((a) => a.options) : []),
+    [snap]
+  );
   // Shared with the wall charts below: hovering a glossary term highlights
   // every matching arrow on both charts, and hovering an arrow highlights the
   // term back — one flag, read in three places.
   const [hoveredKind, setHoveredKind] = useState<WallKind | null>(null);
+  // The aggregate view leads the rail, but a single ticker is still the
+  // default landing view — "All" is there to be reached for, not opened onto.
+  // `null` means "no explicit choice yet", which falls back to the first
+  // ticker once the universe has loaded rather than needing an effect to
+  // catch up once `withChains` goes from empty to populated.
+  const [activeTicker, setActiveTicker] = useState<string | null>(null);
+  const effectiveTicker = activeTicker ?? withChains[0]?.symbol ?? ALL_TICKERS;
 
   if (loading && !snap) {
     return (
@@ -166,42 +185,52 @@ export default function OptionsPage() {
 
   return (
     <Page>
-      <MainContainer>
-        <Head>
-          <Title>Options positioning</Title>
-          <Note>
-            Open interest and volume by expiry for the liquid tickers, with the walls each chain is
-            building and the dates they sit on. Read it as context rather than as a signal — none of
-            it feeds the strategies, and a wall of puts is a statement about positioning, not about
-            direction.
-          </Note>
-        </Head>
+      <PanelWrap>
+        <Layout>
+          {withChains.length > 0 && (
+            <RailCol>
+              <OptionsTickerRail
+                assets={withChains}
+                guide={guide}
+                active={effectiveTicker}
+                onSelect={setActiveTicker}
+              />
+            </RailCol>
+          )}
 
-        <Glossary>
-          {WALL_GLOSSARY.map(({ kind, glyph, color, term, text }) => (
-            <GlossaryTile
-              key={term}
-              $active={hoveredKind === kind}
-              onMouseEnter={() => setHoveredKind(kind)}
-              onMouseLeave={() => setHoveredKind(null)}
-            >
-              <GlossaryTerm data-glyph={glyph} $color={color}>
-                {term}
-              </GlossaryTerm>
-              <GlossaryText>{text}</GlossaryText>
-            </GlossaryTile>
-          ))}
-        </Glossary>
+          <ContentCol>
+            <Glossary>
+              {WALL_GLOSSARY.map(({ kind, glyph, color, term, text }) => (
+                <GlossaryTile
+                  key={term}
+                  $active={hoveredKind === kind}
+                  onMouseEnter={() => setHoveredKind(kind)}
+                  onMouseLeave={() => setHoveredKind(null)}
+                >
+                  <GlossaryTerm data-glyph={glyph} $color={color}>
+                    {term}
+                  </GlossaryTerm>
+                  <GlossaryText>{text}</GlossaryText>
+                </GlossaryTile>
+              ))}
+            </Glossary>
 
-        {assets.length > 0 ? (
-          <OptionsTabCard assets={assets} hoveredKind={hoveredKind} onHoverKind={setHoveredKind} />
-        ) : (
-          <Empty>
-            No option chains in the latest snapshot. Only the symbols in `OPTIONS_SYMBOLS` are
-            pulled — paging every expiry for the whole universe is slow.
-          </Empty>
-        )}
-      </MainContainer>
+            {withChains.length > 0 ? (
+              <OptionsTabCard
+                assets={withChains}
+                active={effectiveTicker}
+                hoveredKind={hoveredKind}
+                onHoverKind={setHoveredKind}
+              />
+            ) : (
+              <Empty>
+                No option chains in the latest snapshot. Only the symbols in `OPTIONS_SYMBOLS` are
+                pulled — paging every expiry for the whole universe is slow.
+              </Empty>
+            )}
+          </ContentCol>
+        </Layout>
+      </PanelWrap>
     </Page>
   );
 }

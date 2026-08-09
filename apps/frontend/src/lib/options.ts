@@ -136,6 +136,9 @@ export function assetsWithChains(assets: AssetSnap[]): AssetSnap[] {
   return assets.filter((a) => a.options && a.options.expirations.length > 0);
 }
 
+/** Sentinel for the aggregate view — distinct from any real ticker symbol. */
+export const ALL_TICKERS = '__ALL__';
+
 /** 'YYYY-MM-DD' → '29 Jul'. Long enough to place a date, short enough for a stat tile. */
 export function shortDate(iso: string): string {
   const parsed = new Date(`${iso}T00:00:00Z`);
