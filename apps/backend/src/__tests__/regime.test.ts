@@ -125,6 +125,7 @@ describe('composed end to end', () => {
       makeReport('a', 70, StrategyKind.Trend, 1),
       makeReport('b', 70, StrategyKind.MeanReversion, 1),
     ];
+    expect(computeRegime(bars)?.trend).toBe('choppy');
     expect(dominantFamily(strategies)).toBeUndefined();
   });
 });

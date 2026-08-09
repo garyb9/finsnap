@@ -20,7 +20,8 @@ export function computeRegime(bars: Bar[]): Regime | undefined {
   const last = values.at(-1);
   if (last === undefined || !Number.isFinite(last)) return undefined;
 
-  return { trend: last >= TRENDING_THRESHOLD ? 'trending' : 'choppy', adx: Math.round(last) };
+  const rounded = Math.round(last);
+  return { trend: rounded >= TRENDING_THRESHOLD ? 'trending' : 'choppy', adx: rounded };
 }
 
 /**
@@ -32,19 +33,24 @@ export function computeRegime(bars: Bar[]): Regime | undefined {
  */
 export function dominantFamily(strategies: StrategyReport[]): StrategyKind | undefined {
   const counts = new Map<StrategyKind, number>();
+  const weights = new Map<StrategyKind, number>();
 
   for (const s of strategies) {
     if (s.kind === StrategyKind.Benchmark) continue;
-    if (voteWeight(s.edgeScore) <= 0) continue;
+    const weight = voteWeight(s.edgeScore);
+    if (weight <= 0) continue;
     if (s.signal.target <= 0) continue;
     counts.set(s.kind, (counts.get(s.kind) ?? 0) + 1);
+    weights.set(s.kind, (weights.get(s.kind) ?? 0) + weight);
   }
 
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const sorted = [...weights.entries()].sort((a, b) => b[1] - a[1]);
   const top = sorted[0];
-  const runnerUpCount = sorted[1]?.[1] ?? 0;
+  const runnerUpWeight = sorted[1]?.[1] ?? 0;
 
-  if (!top || top[1] < MIN_FAMILY_SIZE || top[1] <= runnerUpCount) return undefined;
+  if (!top) return undefined;
+  const topCount = counts.get(top[0]) ?? 0;
+  if (topCount < MIN_FAMILY_SIZE || top[1] <= runnerUpWeight) return undefined;
   return top[0];
 }
 
@@ -53,7 +59,11 @@ export function dominantFamily(strategies: StrategyReport[]): StrategyKind | und
  * the pairing is expected — a choppy regime with mean-reversion leading is
  * just as valid a note as a trending one with breakout leading.
  */
-export function buildRegimeNote(regime: Regime, kind: StrategyKind, volatilityLabel: string): string {
+export function buildRegimeNote(
+  regime: Regime,
+  kind: StrategyKind,
+  volatilityLabel: string
+): string {
   return (
     `${FAMILY_GUIDE[kind].label} rules lead today's vote — ` +
     `${regime.trend} (ADX ${regime.adx}), ${volatilityLabel} bands`
