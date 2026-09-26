@@ -1,0 +1,69 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: finsnap-backend
+    # Optional: with Telegram and API_TOKEN no longer required, the stack comes
+    # up with no configuration at all. Compose used to abort here when the file
+    # was missing, which made `docker compose up` fail on a fresh clone.
+    env_file:
+      - path: apps/backend/.env
+        required: false
+    environment:
+      # Set here, not in .env: inside the compose network Postgres is always
+      # reachable as `postgres`, and a .env copied from a local run would point
+      # at localhost and fail. Everything else still comes from .env.
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/finsnap
+    ports:
+      - '4000:4000'
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile.dev
+    container_name: finsnap-frontend
+    ports:
+      - '3000:3000'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_DISABLE_DEV_INDICATORS: 1
+    depends_on:
+      - backend
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/frontend/.next
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: finsnap-postgres
+    environment:
+      POSTGRES_DB: finsnap
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
