@@ -20,7 +20,7 @@
     "@radix-ui/react-visually-hidden": "^1.2.11",
     "katex": "^0.18.1",
     "lucide-react": "^1.30.0",
-    "next": "15.4.10",
+    "next": "15.5.14",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "styled-components": "^6.3.11"
@@ -32,7 +32,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/styled-components": "^5.1.36",
-    "eslint-config-next": "15.4.10",
+    "eslint-config-next": "15.5.14",
     "typescript": "^5.3.3"
   }
 }
