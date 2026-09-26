@@ -1,6 +1,12 @@
 import type { OptionsData } from '../collectors/types';
 import { OptionsSide, OptionsSkewLabel } from '../constants/enums';
-import type { OptionsAnalysis, OptionsLegStats, OptionsSkewInsight } from './types';
+import type {
+  OptionsAnalysis,
+  OptionsLegStats,
+  OptionsSkewInsight,
+  StrikeProfile,
+  StrikeProfileRow,
+} from './types';
 
 /** Weighted mean: sum(v[i] * w[i]) / sum(w[i]) */
 export function weightedMean(values: number[], weights: number[]): number {
@@ -159,4 +165,70 @@ export function analyzeOptionsChain(data: OptionsData): OptionsAnalysis {
   });
 
   return { ticker: data.ticker, description: data.description, expirations };
+}
+
+interface StrikeAccumulator {
+  callVolume: number;
+  putVolume: number;
+  callOI: number;
+  putOI: number;
+}
+
+/**
+ * Sum every contract sharing a strike, across all expiries in the chain.
+ *
+ * The per-expiry stats above answer "how skewed is this expiry"; this answers
+ * the complementary question — "where, price-wise, is the open interest
+ * concentrated". Rows are keyed by strike and merged, so a strike that appears
+ * in three expiries is one row with the totals. Sorting is ascending by strike,
+ * which is the order a chart or table wants and the order callers should not
+ * have to re-apply.
+ *
+ * `calls`, `puts` and `combined` are the same underlying rows filtered by side,
+ * so a strike that only ever traded puts is absent from `calls` rather than
+ * present as a zero row.
+ */
+export function buildStrikeProfile(data: OptionsData): StrikeProfile {
+  const byStrike = new Map<number, StrikeAccumulator>();
+
+  const accumulate = (contracts: OptionsData['chains'][number]['calls'], side: 'call' | 'put') => {
+    for (const contract of contracts) {
+      const acc = byStrike.get(contract.strike) ?? {
+        callVolume: 0,
+        putVolume: 0,
+        callOI: 0,
+        putOI: 0,
+      };
+      if (side === 'call') {
+        acc.callVolume += contract.volume;
+        acc.callOI += contract.openInterest;
+      } else {
+        acc.putVolume += contract.volume;
+        acc.putOI += contract.openInterest;
+      }
+      byStrike.set(contract.strike, acc);
+    }
+  };
+
+  for (const chain of data.chains) {
+    accumulate(chain.calls, 'call');
+    accumulate(chain.puts, 'put');
+  }
+
+  const rows: StrikeProfileRow[] = [...byStrike.entries()]
+    .map(([strike, acc]) => ({
+      strike,
+      callVolume: acc.callVolume,
+      putVolume: acc.putVolume,
+      callOI: acc.callOI,
+      putOI: acc.putOI,
+      total: acc.callVolume + acc.putVolume + acc.callOI + acc.putOI,
+    }))
+    .sort((a, b) => a.strike - b.strike);
+
+  return {
+    calls: rows.filter((r) => r.callVolume > 0 || r.callOI > 0),
+    puts: rows.filter((r) => r.putVolume > 0 || r.putOI > 0),
+    combined: rows,
+  };
 }

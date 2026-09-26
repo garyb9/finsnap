@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { weightedMean, weightedStd, analyzeOptionsChain } from '../analyzers/options';
+import {
+  weightedMean,
+  weightedStd,
+  analyzeOptionsChain,
+  buildStrikeProfile,
+} from '../analyzers/options';
 import type { OptionsData } from '../collectors/types';
 
 describe('weightedMean', () => {
@@ -105,5 +110,61 @@ describe('analyzeOptionsChain', () => {
   it('handles a chain with no expirations', () => {
     const bare: OptionsData = { ticker: 'TEST', price: 10, fetchedAt: Date.now(), chains: [] };
     expect(analyzeOptionsChain(bare).expirations).toEqual([]);
+  });
+});
+
+describe('buildStrikeProfile', () => {
+  const data: OptionsData = {
+    ticker: 'IBIT',
+    price: 50,
+    fetchedAt: Date.now(),
+    chains: [
+      {
+        expiration: '2026-04-17',
+        calls: [
+          { strike: 50, volume: 1000, openInterest: 5000 },
+          { strike: 55, volume: 200, openInterest: 1000 },
+        ],
+        puts: [
+          { strike: 50, volume: 800, openInterest: 4000 },
+          { strike: 45, volume: 300, openInterest: 900 },
+        ],
+      },
+      {
+        expiration: '2026-05-15',
+        calls: [{ strike: 50, volume: 400, openInterest: 2000 }],
+        puts: [{ strike: 50, volume: 100, openInterest: 500 }],
+      },
+    ],
+  };
+
+  it('merges the same strike across expiries into one row', () => {
+    const row = buildStrikeProfile(data).combined.find((r) => r.strike === 50)!;
+    expect(row.callVolume).toBe(1400); // 1000 + 400
+    expect(row.callOI).toBe(7000);
+    expect(row.putVolume).toBe(900); // 800 + 100
+    expect(row.putOI).toBe(4500);
+    expect(row.total).toBe(13800);
+  });
+
+  it('sorts rows ascending by strike', () => {
+    const strikes = buildStrikeProfile(data).combined.map((r) => r.strike);
+    expect(strikes).toEqual([45, 50, 55]);
+  });
+
+  it('omits a side from its list when it never traded there', () => {
+    const profile = buildStrikeProfile(data);
+    expect(profile.calls.map((r) => r.strike)).toEqual([50, 55]);
+    expect(profile.puts.map((r) => r.strike)).toEqual([45, 50]);
+  });
+
+  it('keeps a call-only strike out of the puts file', () => {
+    const profile = buildStrikeProfile(data);
+    expect(profile.puts.some((r) => r.strike === 55)).toBe(false);
+  });
+
+  it('returns empty lists for an empty chain', () => {
+    const bare: OptionsData = { ticker: 'TEST', price: 10, fetchedAt: Date.now(), chains: [] };
+    expect(buildStrikeProfile(bare)).toEqual({ calls: [], puts: [], combined: [] });
   });
 });

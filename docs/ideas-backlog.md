@@ -57,6 +57,15 @@ doc exists, not yet planned/built) · `built` (shipped, kept here for history).
    fee doesn't scale down with trade size the way bps does. A correctness fix more than
    a new feature — fits the project's "receipts, not vibes" ethos.
 
+## Data & fundamentals
+
+6. **SEC EDGAR filing context** — _idea_. Bring filing metadata and a handful of headline
+   figures (revenue, net income, assets, cash) into the asset detail and field guide,
+   parsed from EDGAR's XBRL companyfacts rather than scraped HTML — code extracts the
+   numbers, an optional agent reviews only the extracted figures, never the filing. Kept
+   as context, never signal, like options positioning. Full shape, open questions and
+   non-goals: [ideas/sec-analysis.md](./ideas/sec-analysis.md).
+
 ## Risk & alerting
 
 6. **Stop-distance watch** — _idea_. The in-progress chandelier/ATR stop machinery

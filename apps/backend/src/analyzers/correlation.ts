@@ -12,7 +12,7 @@ import type { Bar } from '../collectors/types';
 import { AssetCategory } from '../constants/enums';
 import { DAY_MS } from '../constants/time';
 import { isoDate } from '../lib/format';
-import { clamp, mean, round } from '../lib/math';
+import { pearson, round } from '../lib/math';
 
 export interface CorrelationSeries {
   symbol: string;
@@ -65,27 +65,6 @@ export const DEFAULT_CORRELATION_WINDOW = '1y';
 
 /** Below this many paired observations a correlation is too noisy to trust. */
 const MIN_SAMPLE = 20;
-
-function pearson(x: number[], y: number[]): number {
-  if (x.length < 2) return 0;
-
-  const mx = mean(x);
-  const my = mean(y);
-  let cov = 0;
-  let vx = 0;
-  let vy = 0;
-
-  for (let i = 0; i < x.length; i++) {
-    const dx = x[i] - mx;
-    const dy = y[i] - my;
-    cov += dx * dy;
-    vx += dx * dx;
-    vy += dy * dy;
-  }
-
-  if (vx === 0 || vy === 0) return 0;
-  return clamp(cov / Math.sqrt(vx * vy), -1, 1);
-}
 
 /** Close price keyed by calendar day, trimmed to the window and de-duplicated. */
 function closesByDate(bars: Bar[], cutoff: number): Map<string, number> {

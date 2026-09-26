@@ -110,3 +110,23 @@ export interface OptionsAnalysis {
   description?: string;
   expirations: OptionsExpirationAnalysis[];
 }
+
+/**
+ * One row of the aggregated strike profile: every call and put contract that
+ * shares a strike, summed across the expiries that were combined.
+ */
+export interface StrikeProfileRow {
+  strike: number;
+  callVolume: number;
+  putVolume: number;
+  callOI: number;
+  putOI: number;
+  /** callVolume + putVolume + callOI + putOI */
+  total: number;
+}
+
+export interface StrikeProfile {
+  calls: StrikeProfileRow[];
+  puts: StrikeProfileRow[];
+  combined: StrikeProfileRow[];
+}
