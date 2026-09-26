@@ -67,6 +67,16 @@ export type OptionsExpiration = {
   insight?: OptionsSkewInsight;
 };
 
+/** One strike, with every call and put contract at it summed across all expiries. */
+export type StrikeProfileRow = {
+  strike: number;
+  callVolume: number;
+  putVolume: number;
+  callOI: number;
+  putOI: number;
+  total: number;
+};
+
 export type AssetSnap = {
   symbol: string;
   label: string;
@@ -83,6 +93,8 @@ export type AssetSnap = {
   options?: {
     price: number;
     expirations: OptionsExpiration[];
+    /** Every strike, summed across expiries, ascending — absent on older snaps. */
+    strikeProfile?: StrikeProfileRow[];
   };
 };
 

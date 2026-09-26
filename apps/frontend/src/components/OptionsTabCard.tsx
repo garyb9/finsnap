@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { ExpTableScroll, ExpTable } from './Card';
 import { OptionsFlowMap } from './OptionsFlowMap';
 import { OptionsOverview } from './OptionsOverview';
+import { StrikeProfileChart } from './StrikeProfileChart';
 import { fmtNum, fmtK } from '../lib/format';
 import {
   ALL_TICKERS,
@@ -264,6 +265,7 @@ export function OptionsTabCard({ assets, active, hoveredKind, onHoverKind }: Pro
   const isAll = active === ALL_TICKERS;
   const asset = assets.find((a) => a.symbol === active) ?? assets[0];
   const expirations = useMemo(() => asset?.options?.expirations ?? [], [asset]);
+  const strikeProfile = useMemo(() => asset?.options?.strikeProfile ?? [], [asset]);
   const summary = useMemo(() => summarizeChain(expirations), [expirations]);
   const rows = useMemo(() => sortExpirations(expirations, sort), [expirations, sort]);
 
@@ -297,6 +299,10 @@ export function OptionsTabCard({ assets, active, hoveredKind, onHoverKind }: Pro
               hoveredKind={hoveredKind}
               onHoverKind={onHoverKind}
             />
+          )}
+
+          {strikeProfile.length > 0 && (
+            <StrikeProfileChart rows={strikeProfile} spot={data.price} />
           )}
 
           <Body>

@@ -1,5 +1,10 @@
 import type { AssetSize } from '../collectors/quote';
-import type { OptionsExpirationAnalysis, TimeframeAnalysis, TsmomSignal } from '../analyzers/types';
+import type {
+  OptionsExpirationAnalysis,
+  StrikeProfileRow,
+  TimeframeAnalysis,
+  TsmomSignal,
+} from '../analyzers/types';
 import type { AssetClass } from '../config';
 
 export interface AssetSnap {
@@ -24,6 +29,13 @@ export interface AssetSnap {
   options?: {
     price: number;
     expirations: OptionsExpirationAnalysis[];
+    /**
+     * Every contract sharing a strike, summed across all expiries, ascending
+     * by strike. The per-expiry rows above answer "how skewed is this date";
+     * this answers "where is the open interest concentrated by price" — the
+     * profile behind any per-strike histogram.
+     */
+    strikeProfile: StrikeProfileRow[];
   };
 }
 

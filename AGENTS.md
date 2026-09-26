@@ -276,7 +276,10 @@ Labels: `put_stack` / `call_stack` (strong directional skew), `soft_put` / `soft
 
 `buildStrikeProfile(data)` (`analyzers/options.ts`) additionally sums every contract
 sharing a strike across all expiries, producing `calls` / `puts` / `combined` rows sorted
-ascending by strike — the per-strike distribution the per-expiry stats throw away.
+ascending by strike — the per-strike distribution the per-expiry stats throw away. The
+snapshot builder attaches `profile.combined` to `AssetSnap.options.strikeProfile`, and the
+frontend renders it as the mirrored call/put ladder in `StrikeProfileChart` on the Options
+tab.
 
 ## General-purpose statistics
 

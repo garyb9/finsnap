@@ -4,7 +4,7 @@ import { createLogger } from '../logger';
 import { BarCollector } from '../collectors/bars';
 import { fetchOptionsData } from '../collectors/options';
 import { fetchAssetSizes, type AssetSize } from '../collectors/quote';
-import { analyzeOptionsChain } from '../analyzers/options';
+import { analyzeOptionsChain, buildStrikeProfile } from '../analyzers/options';
 import { analyzeAssetBars } from '../analyzers/price';
 import { analyzeTsmom } from '../analyzers/tsmom';
 import type { BarsStore } from '../storage/barsStore';
@@ -106,8 +106,13 @@ export class SnapBuilder {
       const data = await fetchOptionsData(spec.symbol, this.optionsStore);
       if (data) {
         const chain = analyzeOptionsChain(data);
+        const profile = buildStrikeProfile(data);
         snap.description = chain.description;
-        snap.options = { price: data.price, expirations: chain.expirations };
+        snap.options = {
+          price: data.price,
+          expirations: chain.expirations,
+          strikeProfile: profile.combined,
+        };
       } else {
         log.warn(`${spec.symbol}: options data unavailable`);
       }
