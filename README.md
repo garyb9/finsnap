@@ -495,27 +495,27 @@ yarn test
 
 `apps/backend/.env`
 
-| Variable                  | Default                                              | Description                                          |
-| ------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
-| `APP_PORT`                | `4000`                                               | API server port                                      |
-| `DATABASE_URL`            | `postgres://postgres:postgres@postgres:5432/finsnap` | Postgres connection URL                              |
-| `TELEGRAM_BOT_TOKEN`      | —                                                    | Bot token. **Optional** — blank disables delivery    |
-| `TELEGRAM_CHANNEL_ID`     | —                                                    | Channel to publish to. Optional, same as above       |
+| Variable                  | Default                                              | Description                                                        |
+| ------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `APP_PORT`                | `4000`                                               | API server port                                                    |
+| `DATABASE_URL`            | `postgres://postgres:postgres@postgres:5432/finsnap` | Postgres connection URL                                            |
+| `TELEGRAM_BOT_TOKEN`      | —                                                    | Bot token. **Optional** — blank disables delivery                  |
+| `TELEGRAM_CHANNEL_ID`     | —                                                    | Channel to publish to. Optional, same as above                     |
 | `TELEGRAM_OPS_CHANNEL_ID` | —                                                    | Channel pinged when the scheduled snap/report cron fails. Optional |
-| `TELEGRAM_MODE`           | `polling`                                            | `polling` \| `webhook` \| `off`                      |
-| `TELEGRAM_WEBHOOK_URL`    | —                                                    | Public base URL, webhook mode only                   |
-| `TELEGRAM_WEBHOOK_SECRET` | —                                                    | Secret Telegram echoes back, webhook mode only       |
-| `API_TOKEN`               | —                                                    | Bearer token for the trigger endpoints. Unset = open |
-| `CRYPTO_SYMBOLS`          | `BTC-USD`                                            | Crypto symbols, 365 periods/year                     |
-| `EQUITY_SYMBOLS`          | 22 symbols — see [Universe](#universe)               | Equity symbols, 252 periods/year                     |
-| `OPTIONS_SYMBOLS`         | 12 symbols — the liquid subset                       | Subset to pull options chains for                    |
-| `BACKTEST_CAPITAL`        | `10000`                                              | Starting capital per backtest                        |
-| `BACKTEST_FEE_BPS`        | `5`                                                  | Fee per fill, basis points                           |
-| `BACKTEST_SLIPPAGE_BPS`   | `5`                                                  | Slippage per fill, basis points                      |
-| `SNAP_CRON`               | `0 * * * *`                                          | Live snapshot schedule                               |
-| `REPORT_CRON`             | `0 8 * * 1-5`                                        | Daily report schedule                                |
-| `REPORT_TIMEZONE`         | `America/New_York`                                   | Timezone the report cron resolves in                 |
-| `LOG_LEVEL`               | `info`                                               | Winston log level                                    |
+| `TELEGRAM_MODE`           | `polling`                                            | `polling` \| `webhook` \| `off`                                    |
+| `TELEGRAM_WEBHOOK_URL`    | —                                                    | Public base URL, webhook mode only                                 |
+| `TELEGRAM_WEBHOOK_SECRET` | —                                                    | Secret Telegram echoes back, webhook mode only                     |
+| `API_TOKEN`               | —                                                    | Bearer token for the trigger endpoints. Unset = open               |
+| `CRYPTO_SYMBOLS`          | `BTC-USD`                                            | Crypto symbols, 365 periods/year                                   |
+| `EQUITY_SYMBOLS`          | 22 symbols — see [Universe](#universe)               | Equity symbols, 252 periods/year                                   |
+| `OPTIONS_SYMBOLS`         | 12 symbols — the liquid subset                       | Subset to pull options chains for                                  |
+| `BACKTEST_CAPITAL`        | `10000`                                              | Starting capital per backtest                                      |
+| `BACKTEST_FEE_BPS`        | `5`                                                  | Fee per fill, basis points                                         |
+| `BACKTEST_SLIPPAGE_BPS`   | `5`                                                  | Slippage per fill, basis points                                    |
+| `SNAP_CRON`               | `0 * * * *`                                          | Live snapshot schedule                                             |
+| `REPORT_CRON`             | `0 8 * * 1-5`                                        | Daily report schedule                                              |
+| `REPORT_TIMEZONE`         | `America/New_York`                                   | Timezone the report cron resolves in                               |
+| `LOG_LEVEL`               | `info`                                               | Winston log level                                                  |
 
 The report cron runs in an explicit timezone. Left to the container clock, "before the
 open" silently becomes "during lunch" the first time the host region changes.

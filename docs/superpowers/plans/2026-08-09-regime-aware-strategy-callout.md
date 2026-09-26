@@ -22,10 +22,12 @@
 ## Task 1: ADX indicator
 
 **Files:**
+
 - Modify: `apps/backend/src/backtest/indicators/volatility.ts`
 - Test: `apps/backend/src/__tests__/indicators.test.ts`
 
 **Interfaces:**
+
 - Consumes: `trueRange(bars: Bar[]): number[]` (already exported from `volatility.ts`), `Bar` type from `../../collectors/types`.
 - Produces: `adx(bars: Bar[], period = 14): number[]` — exported from `volatility.ts`, and therefore from the `backtest/indicators` barrel (`indicators/index.ts` already does `export * from './volatility'`). Same-length output as `bars`, `NaN` through warm-up, values in `[0, 100]` once defined.
 
@@ -143,11 +145,13 @@ git commit -m "feat: add Wilder ADX indicator"
 ## Task 2: Regime type and `report/regime.ts` module
 
 **Files:**
+
 - Modify: `apps/backend/src/report/types.ts`
 - Create: `apps/backend/src/report/regime.ts`
 - Test: `apps/backend/src/__tests__/regime.test.ts`
 
 **Interfaces:**
+
 - Consumes: `adx()` from Task 1 (`../backtest/indicators`); `voteWeight(edgeScore: number): number` from `./consensus`; `FAMILY_GUIDE` from `../constants/guide`; `StrategyKind`, `type StrategyReport` from `../backtest/types`; `Bar` from `../collectors/types`.
 - Produces:
   - `Regime` interface in `report/types.ts`: `{ trend: 'trending' | 'choppy'; adx: number }`.
@@ -380,7 +384,11 @@ export function dominantFamily(strategies: StrategyReport[]): StrategyKind | und
  * the pairing is expected — a choppy regime with mean-reversion leading is
  * just as valid a note as a trending one with breakout leading.
  */
-export function buildRegimeNote(regime: Regime, kind: StrategyKind, volatilityLabel: string): string {
+export function buildRegimeNote(
+  regime: Regime,
+  kind: StrategyKind,
+  volatilityLabel: string
+): string {
   return (
     `${FAMILY_GUIDE[kind].label} rules lead today's vote — ` +
     `${regime.trend} (ADX ${regime.adx}), ${volatilityLabel} bands`
@@ -405,11 +413,13 @@ git commit -m "feat: add regime classification and dominant-family note builder"
 ## Task 3: Wire into the daily report
 
 **Files:**
+
 - Modify: `apps/backend/src/report/builder.ts`
 - Modify: `apps/backend/src/report/compact.ts`
 - Test: `apps/backend/src/__tests__/report.test.ts`
 
 **Interfaces:**
+
 - Consumes: `computeRegime`, `dominantFamily`, `buildRegimeNote` from `./regime` (Task 2); existing `AssetOpportunity.regime?: Regime` field (Task 2).
 - Produces: `AssetOpportunity.regime` populated on every asset in `DailyReport`; a regime note appended to `AssetOpportunity.notes` when applicable; `CompactAsset.regime` passed through unchanged (same pattern as the existing `tsmom`/`momentum` passthrough).
 
@@ -418,14 +428,14 @@ git commit -m "feat: add regime classification and dominant-family note builder"
 In `apps/backend/src/__tests__/report.test.ts`, inside the existing `describe('compactAsset', ...)` block (near the existing `it('drops bollinger when the asset has none', ...)`-style test around line 213), add:
 
 ```ts
-  it('passes regime through unchanged', () => {
-    const asset = makeAsset({ regime: { trend: 'trending', adx: 31 } });
-    expect(compactAsset(asset).regime).toEqual({ trend: 'trending', adx: 31 });
-  });
+it('passes regime through unchanged', () => {
+  const asset = makeAsset({ regime: { trend: 'trending', adx: 31 } });
+  expect(compactAsset(asset).regime).toEqual({ trend: 'trending', adx: 31 });
+});
 
-  it('has no regime when the asset has none', () => {
-    expect(compactAsset(makeAsset()).regime).toBeUndefined();
-  });
+it('has no regime when the asset has none', () => {
+  expect(compactAsset(makeAsset()).regime).toBeUndefined();
+});
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -468,88 +478,88 @@ import { buildRegimeNote, computeRegime, dominantFamily } from './regime';
 In `buildAsset()`, the existing code around the options-insight note and the `bollinger` field in the return statement currently reads:
 
 ```ts
-    const options = spec.hasOptions ? await this.buildOptionsContext(spec) : undefined;
-    if (options?.insight && options.insight.label !== 'balanced') {
-      const { dominantSide, wallStrike, distanceToSpotPct } = options.insight;
-      notes.push(
-        `options ${dominantSide} stacking near $${wallStrike.toFixed(2)} ` +
-          `(${fmtPct(distanceToSpotPct)} vs spot)`
-      );
-    }
+const options = spec.hasOptions ? await this.buildOptionsContext(spec) : undefined;
+if (options?.insight && options.insight.label !== 'balanced') {
+  const { dominantSide, wallStrike, distanceToSpotPct } = options.insight;
+  notes.push(
+    `options ${dominantSide} stacking near $${wallStrike.toFixed(2)} ` +
+      `(${fmtPct(distanceToSpotPct)} vs spot)`
+  );
+}
 
-    return {
-      symbol: spec.symbol,
-      label: spec.label,
-      assetClass: spec.assetClass,
-      category: spec.category,
-      lastClose: dailyResult.lastClose,
-      lastChangePct: dailyResult.lastChangePct,
-      size,
-      lastBarTime: dailyResult.lastBarTime,
-      historyStart: dailyResult.historyStart,
-      barsAnalyzed: dailyResult.barsAnalyzed,
-      consensus,
-      daily: dailyResult.strategies,
-      intraday: intradayResult?.strategies ?? [],
-      tsmom: { score: tsmom.score, label: tsmom.label },
-      momentum: analysis.marketMomentum,
-      bollinger: dailyFrame && {
-        bandwidth: dailyFrame.bollinger.bandwidth,
-        percentB: dailyFrame.bollinger.percentB,
-        widthLabel: pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label,
-        positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
-      },
-      options,
-      notes,
-    };
+return {
+  symbol: spec.symbol,
+  label: spec.label,
+  assetClass: spec.assetClass,
+  category: spec.category,
+  lastClose: dailyResult.lastClose,
+  lastChangePct: dailyResult.lastChangePct,
+  size,
+  lastBarTime: dailyResult.lastBarTime,
+  historyStart: dailyResult.historyStart,
+  barsAnalyzed: dailyResult.barsAnalyzed,
+  consensus,
+  daily: dailyResult.strategies,
+  intraday: intradayResult?.strategies ?? [],
+  tsmom: { score: tsmom.score, label: tsmom.label },
+  momentum: analysis.marketMomentum,
+  bollinger: dailyFrame && {
+    bandwidth: dailyFrame.bollinger.bandwidth,
+    percentB: dailyFrame.bollinger.percentB,
+    widthLabel: pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label,
+    positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
+  },
+  options,
+  notes,
+};
 ```
 
 Replace it with (the only changes: a `widthLabel` variable pulled out so it's computed once instead of inline, a regime block before `return`, and `regime` added to the returned object):
 
 ```ts
-    const options = spec.hasOptions ? await this.buildOptionsContext(spec) : undefined;
-    if (options?.insight && options.insight.label !== 'balanced') {
-      const { dominantSide, wallStrike, distanceToSpotPct } = options.insight;
-      notes.push(
-        `options ${dominantSide} stacking near $${wallStrike.toFixed(2)} ` +
-          `(${fmtPct(distanceToSpotPct)} vs spot)`
-      );
-    }
+const options = spec.hasOptions ? await this.buildOptionsContext(spec) : undefined;
+if (options?.insight && options.insight.label !== 'balanced') {
+  const { dominantSide, wallStrike, distanceToSpotPct } = options.insight;
+  notes.push(
+    `options ${dominantSide} stacking near $${wallStrike.toFixed(2)} ` +
+      `(${fmtPct(distanceToSpotPct)} vs spot)`
+  );
+}
 
-    const widthLabel = dailyFrame && pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label;
+const widthLabel = dailyFrame && pickBand(BANDWIDTH_BANDS, dailyFrame.bollinger.bandwidth).label;
 
-    const regime = computeRegime(daily);
-    const family = regime && dominantFamily(dailyResult.strategies);
-    if (regime && family && widthLabel) {
-      notes.push(buildRegimeNote(regime, family, widthLabel));
-    }
+const regime = computeRegime(daily);
+const family = regime && dominantFamily(dailyResult.strategies);
+if (regime && family && widthLabel) {
+  notes.push(buildRegimeNote(regime, family, widthLabel));
+}
 
-    return {
-      symbol: spec.symbol,
-      label: spec.label,
-      assetClass: spec.assetClass,
-      category: spec.category,
-      lastClose: dailyResult.lastClose,
-      lastChangePct: dailyResult.lastChangePct,
-      size,
-      lastBarTime: dailyResult.lastBarTime,
-      historyStart: dailyResult.historyStart,
-      barsAnalyzed: dailyResult.barsAnalyzed,
-      consensus,
-      daily: dailyResult.strategies,
-      intraday: intradayResult?.strategies ?? [],
-      tsmom: { score: tsmom.score, label: tsmom.label },
-      momentum: analysis.marketMomentum,
-      bollinger: dailyFrame && {
-        bandwidth: dailyFrame.bollinger.bandwidth,
-        percentB: dailyFrame.bollinger.percentB,
-        widthLabel,
-        positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
-      },
-      options,
-      regime,
-      notes,
-    };
+return {
+  symbol: spec.symbol,
+  label: spec.label,
+  assetClass: spec.assetClass,
+  category: spec.category,
+  lastClose: dailyResult.lastClose,
+  lastChangePct: dailyResult.lastChangePct,
+  size,
+  lastBarTime: dailyResult.lastBarTime,
+  historyStart: dailyResult.historyStart,
+  barsAnalyzed: dailyResult.barsAnalyzed,
+  consensus,
+  daily: dailyResult.strategies,
+  intraday: intradayResult?.strategies ?? [],
+  tsmom: { score: tsmom.score, label: tsmom.label },
+  momentum: analysis.marketMomentum,
+  bollinger: dailyFrame && {
+    bandwidth: dailyFrame.bollinger.bandwidth,
+    percentB: dailyFrame.bollinger.percentB,
+    widthLabel,
+    positionLabel: pickBand(PERCENT_B_BANDS, dailyFrame.bollinger.percentB).label,
+  },
+  options,
+  regime,
+  notes,
+};
 ```
 
 Note: `daily` (the bars variable, already in scope from earlier in `buildAsset()` — `const daily = dropIncompleteBar(symbolBars.daily);`) is what `computeRegime` runs on, the same bars the backtests themselves ran on.
@@ -576,6 +586,7 @@ git commit -m "feat: surface regime-aware strategy callout in the daily report"
 ## Self-Review
 
 **Spec coverage:**
+
 - New `adx()` indicator → Task 1.
 - `computeRegime`, `dominantFamily`, `buildRegimeNote`, `Regime` type → Task 2.
 - Builder integration, `regime` field on `AssetOpportunity`, note pushed via the existing pattern → Task 3, Step 5.

@@ -33,7 +33,7 @@ doc exists, not yet planned/built) · `built` (shipped, kept here for history).
    own `StrategyDef` and backtest it like any other rule, to see whether "listen to the
    crowd" actually beats the best individual strategy. Architecturally tricky: a
    `StrategyDef.signals()` is currently a pure function of `bars` alone, while the
-   consensus vote is computed *from* other strategies' results — needs that circularity
+   consensus vote is computed _from_ other strategies' results — needs that circularity
    resolved before this is buildable.
 
 4. **Options skew as a validated signal, not just context** — _idea, blocked_.

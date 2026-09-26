@@ -7,7 +7,7 @@
 ## Context
 
 FinSnap's Strategies tab and daily report rank rules by historical edge, but they don't
-explain *why* a family is winning on a given asset right now. A reader sees "breakout
+explain _why_ a family is winning on a given asset right now. A reader sees "breakout
 rules are leading XLE" without any independent signal confirming whether that's because
 XLE is genuinely trending, or coincidence. This surfaced as one of several brainstormed
 ideas (see the backlog) and was chosen to design first because it's self-contained,
@@ -84,7 +84,11 @@ export function computeRegime(bars: Bar[]): Regime | undefined;
 export function dominantFamily(strategies: StrategyReport[]): StrategyKind | undefined;
 
 /** e.g. "Breakout rules lead today's vote — trending (ADX 31), wide bands" */
-export function buildRegimeNote(regime: Regime, kind: StrategyKind, volatilityLabel: string): string;
+export function buildRegimeNote(
+  regime: Regime,
+  kind: StrategyKind,
+  volatilityLabel: string
+): string;
 ```
 
 `buildRegimeNote` reuses `FAMILY_GUIDE[kind].label` from `constants/guide.ts` for the
