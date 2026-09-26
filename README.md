@@ -1,14 +1,57 @@
 # FinSnap
 
-Price-action snapshots and multi-strategy backtests across the market, its sectors and
-the macro instruments that move them.
+**Daily price-action snapshots, regime-aware signals, and multi-strategy backtests across
+the market, its sectors, and the macro instruments that move them.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg)](tsconfig.base.json)
+[![Universe](https://img.shields.io/badge/universe-23%20assets-blue.svg)](#universe)
+[![Backtests](https://img.shields.io/badge/output-backtest%20%2B%20live%20signals-purple.svg)](#backtest-methodology)
 
 FinSnap answers one question every morning: **is today a good entry?** It runs every
 strategy in its registry across every lookback window, weights each strategy by whether
 it has ever actually beaten buy-and-hold, and reduces the result to a short list of what
 fired today plus one verdict per asset.
 
-Not advice. A reproducible read on what the rules say, with the evidence attached.
+It covers **23 assets** — the broad US market, all eleven sectors, and the macro
+instruments (commodities, rates, the dollar, bitcoin) that usually explain why the
+sectors are moving. Signals ship as a ranked daily report, a live multi-timeframe
+snapshot, a Next.js dashboard, a JSON API, and a Telegram bot.
+
+> Not advice. A reproducible read on what the rules say, with the evidence attached.
+
+> **FinSnap is the successor to `stock-options-analysis-tools`.** The original Python
+> options-analysis, statistics, SEC-filing and Finviz utilities were folded into this
+> project; their modules remain available in the repository's git history. See
+> [Origin & legacy tools](#origin--legacy-tools).
+
+**Keywords:** quantitative trading · stock market analysis · options positioning ·
+backtesting engine · technical indicators · regime detection · TSMOM · sector rotation ·
+market breadth · TypeScript · Next.js · Telegram bot · financial data pipeline.
+
+## Table of Contents
+
+- [What It Does](#what-it-does)
+- [Universe](#universe)
+- [The Two Scores](#the-two-scores)
+- [Consensus](#consensus)
+- [Backtest Methodology](#backtest-methodology)
+- [Lookback Windows](#lookback-windows)
+- [Strategy Registry](#strategy-registry)
+- [Architecture](#architecture)
+- [API](#api)
+- [Dashboard](#dashboard)
+- [Manual Sync](#manual-sync)
+- [Telegram](#telegram)
+- [Options Positioning](#options-positioning)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [Glossary](#glossary)
+- [Hosting](#hosting)
+- [Tech Stack](#tech-stack)
+- [Requirements](#requirements)
+- [Origin & legacy tools](#origin--legacy-tools)
 
 ## What It Does
 
@@ -556,3 +599,28 @@ interactive Telegram bot working as they do today.
 - Node >= 22.0.0
 - Yarn >= 1.22.0
 - Docker + Docker Compose (for Postgres + full stack)
+
+## Origin & legacy tools
+
+FinSnap supersedes **`stock-options-analysis-tools`** (2020–2026), which began as a set of
+Python utilities for graphical and statistical analysis of the stock market, options,
+derivatives, and finance. Those modules are no longer part of the default checkout, but
+they remain in this repository's git history so an agent or developer can browse them and
+port what is still useful:
+
+- **`options_analysis`** — load options chains from yfinance, Yahoo, TradeStation exports
+  or marketdata.app; aggregate by strike; weighted mean/std; histograms and timelines.
+- **`stock_data`** — ticker CSV loading, date-sliced correlation against a reference
+  ticker, and Finviz news for outlier dates.
+- **`sec_analysis`** — SEC EDGAR 8-K/10-K/10-Q retrieval, table extraction, Excel export.
+- **`finviz_scraper`** — Finviz quote-page snapshot params and news.
+
+Browse the final Python tree at
+[`16a64da`](https://github.com/garyb9/finsnap/tree/16a64da). The equivalent functionality
+in FinSnap now lives mainly in `apps/backend/src/analyzers`, `apps/backend/src/collectors`,
+`apps/backend/src/backtest`, and `apps/backend/src/report`.
+
+## License
+
+[MIT](LICENSE) © GaryB. FinSnap is provided for research and educational use and is not
+investment advice.
