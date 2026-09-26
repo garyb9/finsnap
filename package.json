@@ -20,8 +20,8 @@
     "lint:md:fix": "markdownlint --fix \"README.md\"",
     "format": "turbo run format",
     "test": "turbo run test",
-    "prep": "yarn format && yarn lint:fix && yarn test && yarn build",
-    "ci": "turbo run ci"
+    "prep": "yarn format && yarn lint:fix && yarn build",
+    "ci": "yarn prep && yarn test"
   },
   "engines": {
     "node": ">=22.0.0",
